@@ -4,11 +4,12 @@
 #include "pch.h"
 #include "framework.h"
 #include "RemoteCtrl.h"
+#include "ServerSocket.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
-#include "ServerSocket.h"
+
 
 
 // 唯一的应用程序对象
@@ -55,13 +56,8 @@ int main()
 					count++;
 				}
 				//连接成功处理操作
+				int ret = pServer->Recv();
 				//TODO:
-				char buf[1024] = "";
-				int ret = pServer->Recv(buf);
-				if (pServer->Send(buf, ret) == false) {
-					MessageBox(NULL, _T("消息发送失败！"), _T("错误"), MB_OK | MB_ICONERROR);//NULL表示悬空弹窗窗口
-				}
-				
 
 			}
 		}

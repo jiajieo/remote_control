@@ -1,10 +1,10 @@
-#include "pch.h"
+ï»¿#include "pch.h"
 #include "ServerSocket.h"
 
 //CServerSocket server;
 
-//Ò»°ãthis·Ç¾²Ì¬º¯ÊıÊÇÔÚ¹¹Ôìº¯ÊıÀï³õÊ¼»¯£»¶ø¾²Ì¬³ÉÔ±²»ÄÜÔÙ¹¹Ôìº¯ÊıÀï³õÊ¼»¯£¬ÒòÎªËüÊÇËùÓĞÀàÏÂÃæµÄ¶ÔÏóºÍ×ÓÀà¶ÔÏó¹²ÓÃµÄ£¬ËùÒÔÒ»¶¨ÒªÓÃÏÂÃæÕâÖÖÏÔÊ¾µÄ·½Ê½½øĞĞ³õÊ¼»¯
-CServerSocket* CServerSocket::m_instance = NULL;//¶Ô¸ÃÀàµÄÊµÀı½øĞĞ³õÊ¼»¯
+//ä¸€èˆ¬thiséé™æ€å‡½æ•°æ˜¯åœ¨æ„é€ å‡½æ•°é‡Œåˆå§‹åŒ–ï¼›è€Œé™æ€æˆå‘˜ä¸èƒ½å†æ„é€ å‡½æ•°é‡Œåˆå§‹åŒ–ï¼Œå› ä¸ºå®ƒæ˜¯æ‰€æœ‰ç±»ä¸‹é¢çš„å¯¹è±¡å’Œå­ç±»å¯¹è±¡å…±ç”¨çš„ï¼Œæ‰€ä»¥ä¸€å®šè¦ç”¨ä¸‹é¢è¿™ç§æ˜¾ç¤ºçš„æ–¹å¼è¿›è¡Œåˆå§‹åŒ–
+CServerSocket* CServerSocket::m_instance = NULL;//å¯¹è¯¥ç±»çš„å®ä¾‹è¿›è¡Œåˆå§‹åŒ–
 CServerSocket::CHelper CServerSocket::m_helper;
 
-//CServerSocket* pserver = CServerSocket::getInstance();//ÔÚmain()º¯ÊıÖ®Ç°¾Íµ÷ÓÃ
+//CServerSocket* pserver = CServerSocket::getInstance();//åœ¨main()å‡½æ•°ä¹‹å‰å°±è°ƒç”¨
