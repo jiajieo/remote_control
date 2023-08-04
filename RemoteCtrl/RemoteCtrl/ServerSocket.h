@@ -1,4 +1,7 @@
 #pragma once
+
+#pragma pack(push)
+#pragma pack(1)
 class CPacket {
 public:
 	CPacket() :sHead(0), nLength(0), sCmd(0), sSum(0) {
@@ -10,6 +13,17 @@ public:
 		sCmd = pack.sCmd;
 		strData = pack.strData;
 		sSum = pack.sSum;
+	}
+	//打包数据
+	CPacket(WORD nCmd, const char* pData, size_t nSize) {
+		sHead = 0xFEFF;
+		nLength = nSize+4;//+命令和校验是包长度
+		sCmd = nCmd;
+		strData.resize(nSize);
+		memcpy((char*)strData.c_str(), pData, nSize);
+		for (size_t i = 0; i < nSize; i++) {
+			sSum += ((BYTE)strData[i] & 0xFF);
+		}
 	}
 	CPacket(const BYTE* pData, size_t& nSize) {//方便解析数据，随便丢进来一个数据进行解析  BYTE:unsigned char BYTE 1字节
 		size_t i = 0;//字节长度跟踪
@@ -63,13 +77,31 @@ public:
 		}
 		return *this;
 	}
+
+	int Size() {//数据包的长度
+		return nLength + 2 + 4;
+	}
+
+	const char* Data() {//将整个数据包的数据转成字符串型，方便查看读取。
+		strOut.resize(Size());//将strOut字符串大小指定为整个数据包的长度
+		BYTE* pData = (BYTE*)strOut.c_str();//定义一个BYTE数据类型的指针指向整个包的数据字符串
+		*(WORD*)pData = sHead; pData += 2;
+		*(DWORD*)pData = nLength; pData += 4;
+		*(WORD*)pData = sCmd; pData += 2;
+		memcpy(pData, strData.c_str(), nLength - 4); pData += strData.size();
+		*(WORD*)pData = sSum; pData += 2;
+		return strOut.c_str();
+	}
+
 public://包数据是外部需要调用到的，所以这里用public
 	WORD sHead;//包头FE FF  unsigned short 2字节
 	DWORD nLength;//包长度，数据的字节长度(从命令开始，到和校验结束)  unsigned long 4字节
 	WORD sCmd;//命令
 	std::string strData;//包数据
-	WORD sSum;//和校验
+	WORD sSum;//和校验 将包数据进行加求和
+	std::string strOut;//整个包的数据，方便查看
 };
+#pragma pack(pop)
 
 
 #define BUFFER_SIZE 4096//接收数据包的缓冲区大小
@@ -149,6 +181,10 @@ public:
 	bool Send(const char* pData, int nSize) {
 		if (m_sockcli == INVALID_SOCKET)return false;
 		return send(m_sockcli, pData, nSize, 0) > 0;
+	}
+	bool Send(CPacket& pack) {//函数重载 加一个可以发送数据包的Send函数
+		if (m_sockcli == INVALID_SOCKET)return false;
+		return send(m_sockcli, pack.Data(), pack.Size(), 0) > 0;//将CPacket类转成const char*型(const char*)&pack
 	}
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
