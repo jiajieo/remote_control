@@ -17,7 +17,7 @@ public:
 	//打包数据
 	CPacket(WORD nCmd, const char* pData, size_t nSize) {
 		sHead = 0xFEFF;
-		nLength = nSize+4;//+命令和校验是包长度
+		nLength = nSize + 4;//+命令和校验是包长度
 		sCmd = nCmd;
 		strData.resize(nSize);
 		memcpy((char*)strData.c_str(), pData, nSize);
@@ -185,6 +185,14 @@ public:
 	bool Send(CPacket& pack) {//函数重载 加一个可以发送数据包的Send函数
 		if (m_sockcli == INVALID_SOCKET)return false;
 		return send(m_sockcli, pack.Data(), pack.Size(), 0) > 0;//将CPacket类转成const char*型(const char*)&pack
+	}
+
+	bool GetFilePath(std::string& strPath) {//获取控制端想要访问的路径
+		if (m_pack.sCmd == 2) {
+			strPath = m_pack.strData;
+			return true;
+		}
+		return false;
 	}
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造

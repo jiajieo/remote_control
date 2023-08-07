@@ -50,6 +50,64 @@ int MakeDriverInfo() {//创建一个磁盘分区
 	return 0;
 }
 
+#include <io.h>
+#include <list>
+
+typedef struct fileinfo {//结构体默认是public,类默认是private.
+	fileinfo() {
+		IsInvalid = FALSE;//默认是有效的
+		IsDirectory = -1;
+		IsHasNext = TRUE;//默认是有后续的
+		memset(szFileName, 0, sizeof(szFileName));
+	}
+	BOOL IsInvalid;//判断该目录是否无效
+	BOOL IsDirectory;//判断是目录(文件夹)还是文件 0:文件 1:目录
+	BOOL IsHasNext;//文件是否还有后续 1:是 0:否
+	char szFileName[256];//文件名
+}FILEINFO, * PFILEINFO;
+
+int MakeDirectoryInfo() {//查看指定目录下的文件
+	std::string strPath;
+	//std::list<FILEINFO> lstFileInfo;//用该结构体定义一个链表，方便文件处理
+	if (CServerSocket::getInstance()->GetFilePath(strPath) == false) {
+		OutputDebugString(_T("错误，当前命令不是获取文件路径的命令！\n"));
+		return -1;
+	}
+	//数据获取成功，查看文件处理
+	if (_chdir(strPath.c_str()) != 0) {//更改当前工作目录，进入指定目录，与_findfirst可配合使用
+		fileinfo tempfile;
+		tempfile.IsInvalid = TRUE;//目录无效
+		tempfile.IsDirectory = TRUE;
+		tempfile.IsHasNext = FALSE;
+		memcpy(tempfile.szFileName, strPath.c_str(), strPath.size());
+		//lstFileInfo.push_back(tempfile);
+		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
+		CServerSocket::getInstance()->Send(pack);
+		OutputDebugString(_T("该目录不存在！\n"));
+		return -2;
+	}
+	_finddata_t filedata;
+	int hfind = 0;
+	if ((hfind = _findfirst("*", &filedata)) == -1) {//在当前目录下查找文件或子目录，提供与参数filespec中指定的文件名匹配的第一个实例。_findfirst接收一个通配符字符串作为参数，可以用于查找文件或文件夹。
+		OutputDebugString(_T("没有找到该文件！\n"));//输出调试模式一般在Debug模式下，不过如果不加控制条件，在release模式下也可以使用
+		return -3;
+	}
+	do {//此时要将文件信息生成一个列表，想办法将这些文件正常提交到控制端，所以这里要再写一个结构体
+		fileinfo tempfile;//临时文件
+		tempfile.IsDirectory = (filedata.attrib&_A_SUBDIR)!=0;//filedata.attrib&_A_SUBDIR 判断他是否有子目录(文件夹)
+		memcpy(tempfile.szFileName, filedata.name, filedata.size);
+		//lstFileInfo.push_back(tempfile);
+		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
+		CServerSocket::getInstance()->Send(pack);
+	} while (_findnext(hfind, &filedata));//查找下一个名称
+	//发送信息到控制端，但是如果该文件夹有大量的文件，一次性发完效果不是很好，所以要一个一个发，但是从用户体验方面来说，后者与用户有交互，可以随时反馈，所以这里选后者，结构体加一个是否还有后续的判断变量
+	fileinfo tempfile;
+	tempfile.IsHasNext = FALSE;
+	CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
+	CServerSocket::getInstance()->Send(pack);
+	return 0;
+}
+
 int main()
 {
 	int nRetCode = 0;
@@ -98,8 +156,8 @@ int main()
 			case 1://查看磁盘分区
 				MakeDriverInfo();
 				break;
-			case 2:
-
+			case 2://查看指定目录下的文件
+				MakeDirectoryInfo();
 				break;
 			case 3:
 
