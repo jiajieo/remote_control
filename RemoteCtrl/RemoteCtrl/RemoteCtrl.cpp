@@ -75,6 +75,7 @@ int MakeDirectoryInfo() {//查看指定目录下的文件
 	}
 	//数据获取成功，查看文件处理
 	if (_chdir(strPath.c_str()) != 0) {//更改当前工作目录，进入指定目录，与_findfirst可配合使用
+		//目录不存在的情况
 		fileinfo tempfile;
 		tempfile.IsInvalid = TRUE;//目录无效
 		tempfile.IsDirectory = TRUE;
@@ -86,6 +87,7 @@ int MakeDirectoryInfo() {//查看指定目录下的文件
 		OutputDebugString(_T("该目录不存在！\n"));
 		return -2;
 	}
+	//遍历该目录下的文件
 	_finddata_t filedata;
 	int hfind = 0;
 	if ((hfind = _findfirst("*", &filedata)) == -1) {//在当前目录下查找文件或子目录，提供与参数filespec中指定的文件名匹配的第一个实例。_findfirst接收一个通配符字符串作为参数，可以用于查找文件或文件夹。
