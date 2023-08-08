@@ -19,8 +19,13 @@ public:
 		sHead = 0xFEFF;
 		nLength = nSize + 4;//+命令和校验是包长度
 		sCmd = nCmd;
-		strData.resize(nSize);
-		memcpy((char*)strData.c_str(), pData, nSize);
+		if (nSize > 0) {
+			strData.resize(nSize);
+			memcpy((char*)strData.c_str(), pData, nSize);
+		}
+		else {
+			strData.clear();
+		}
 		for (size_t i = 0; i < nSize; i++) {
 			sSum += ((BYTE)strData[i] & 0xFF);
 		}
@@ -188,7 +193,7 @@ public:
 	}
 
 	bool GetFilePath(std::string& strPath) {//获取控制端想要访问的路径
-		if (m_pack.sCmd == 2) {
+		if ((m_pack.sCmd == 2) || (m_pack.sCmd == 3)|| (m_pack.sCmd == 4)) {//控制命令2和3都可以获取要访问的路径
 			strPath = m_pack.strData;
 			return true;
 		}

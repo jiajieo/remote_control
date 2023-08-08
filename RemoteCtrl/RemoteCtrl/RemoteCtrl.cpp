@@ -96,7 +96,7 @@ int MakeDirectoryInfo() {//查看指定目录下的文件
 	}
 	do {//此时要将文件信息生成一个列表，想办法将这些文件正常提交到控制端，所以这里要再写一个结构体
 		fileinfo tempfile;//临时文件
-		tempfile.IsDirectory = (filedata.attrib&_A_SUBDIR)!=0;//filedata.attrib&_A_SUBDIR 判断他是否有子目录(文件夹)
+		tempfile.IsDirectory = (filedata.attrib & _A_SUBDIR) != 0;//filedata.attrib&_A_SUBDIR 判断他是否有子目录(文件夹)
 		memcpy(tempfile.szFileName, filedata.name, filedata.size);
 		//lstFileInfo.push_back(tempfile);
 		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
@@ -106,6 +106,47 @@ int MakeDirectoryInfo() {//查看指定目录下的文件
 	fileinfo tempfile;
 	tempfile.IsHasNext = FALSE;
 	CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
+	CServerSocket::getInstance()->Send(pack);
+	return 0;
+}
+
+int RunFile() {//这里是运行而不是打开文件是因为有些文件是.exe，有些文件是默认应用打开
+	std::string strPath;
+	CServerSocket::getInstance()->GetFilePath(strPath);
+	ShellExecuteA(NULL, (LPCSTR)open, strPath.c_str(), NULL, NULL, SW_SHOW);//对指定文件执行操作，相当于双击文件  ShellExecute是Unicode字符集的，ShellExecuteA是多字符集的，所以这里用后者
+	CPacket pack(3, NULL, NULL);
+	CServerSocket::getInstance()->Send(pack);
+	return 0;
+}
+
+int DownloadFile() {//下载文件
+	std::string strPath;
+	CServerSocket::getInstance()->GetFilePath(strPath);
+	long long data = 0;
+	FILE* pFile = NULL;//文件默认为NULL，因为可能存在文件打开了但读不到数据，但是fopen_s如果失败了，那pFile还是NULL.
+	errno_t err = fopen_s(&pFile, strPath.c_str(), "rb");//可读打开一个二进制文件，文本可以通过二进制方式来读，但二进制文件不能文本方式读。
+	if (err != 0) {
+		CPacket pack(4, (char*)data, 8);//下载文件默认长度为0
+		CServerSocket::getInstance()->Send(pack);
+		return -1;
+	}
+	if (pFile != NULL) {
+		fseek(pFile, 0, SEEK_END);//将文件指针移到指针位置，SEEK_END文件结尾
+		data = _ftelli64(pFile);//如果处理大型文件，就用_ftelli64，即64位有符号整数类型，可处理大于2GB的文件。
+		CPacket pack(4, (char*)data, 8);//将要下载的文件大小发送到控制端
+		CServerSocket::getInstance()->Send(pack);
+		fseek(pFile, 0, SEEK_SET);//恢复文件指针
+		char buffer[1024] = { 0 };
+		size_t rlen = 0;
+		do {
+			rlen = fread(buffer, 1, sizeof(buffer), pFile);//从流读取数据
+			CPacket pack(4, buffer, rlen);
+			CServerSocket::getInstance()->Send(pack);
+			memset(buffer, 0, sizeof(buffer));
+		} while (rlen > 0);//只要读到了就可以继续读或rlen>=1024
+		fclose(pFile);//关闭文件
+	}
+	CPacket pack(4, NULL, NULL);
 	CServerSocket::getInstance()->Send(pack);
 	return 0;
 }
@@ -161,11 +202,11 @@ int main()
 			case 2://查看指定目录下的文件
 				MakeDirectoryInfo();
 				break;
-			case 3:
-
+			case 3://打开文件
+				RunFile();
 				break;
-			case 4:
-
+			case 4://下载文件
+				DownloadFile();
 				break;
 			default:
 
