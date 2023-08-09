@@ -108,6 +108,17 @@ public://包数据是外部需要调用到的，所以这里用public
 };
 #pragma pack(pop)
 
+typedef struct mouseev{
+	mouseev(){//初始化
+		nAction = 0;
+		nButton = 0;
+		ptXY.x = 0;
+		ptXY.y = 0;
+	}
+	WORD nAction;//首先是描述动作的:点击(单击、双击)、移动
+	WORD nButton;//左键、右键、中键
+	POINT ptXY;//坐标
+}MOUSEEV,*PMOUSEEV;
 
 #define BUFFER_SIZE 4096//接收数据包的缓冲区大小
 class CServerSocket
@@ -195,6 +206,14 @@ public:
 	bool GetFilePath(std::string& strPath) {//获取控制端想要访问的路径
 		if ((m_pack.sCmd == 2) || (m_pack.sCmd == 3)|| (m_pack.sCmd == 4)) {//控制命令2和3都可以获取要访问的路径
 			strPath = m_pack.strData;
+			return true;
+		}
+		return false;
+	}
+
+	bool GetMouseEvent(MOUSEEV& mouse) {//这里选择用应用来指向传进来参数的地址
+		if (m_pack.sCmd == 5) {//定义一个结构体来获取鼠标的一些属性，比如：左键，右键，单击，双击，移动等
+			memcpy(&mouse, m_pack.strData.c_str(), sizeof(MOUSEEV));
 			return true;
 		}
 		return false;
