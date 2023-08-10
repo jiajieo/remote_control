@@ -155,8 +155,6 @@ int DownloadFile() {//下载文件
 int MouseEvent() {//鼠标操作
 	mouseev mouse;
 	if (CServerSocket::getInstance()->GetMouseEvent(mouse)) {
-		//设置鼠标坐标
-		
 		WORD nFlag;//2字节 0000 0000  0000 0000,设置一个标志位来处理鼠标按键信息
 		switch (mouse.nButton) {
 		case 0://左键
@@ -172,7 +170,7 @@ int MouseEvent() {//鼠标操作
 			nFlag = 8;//1000
 			break;
 		}
-		if(nFlag!=8)//没有按键的鼠标坐标搞定了，其余有按键时鼠标坐标在这里搞
+		if (nFlag != 8)//没有按键的鼠标坐标搞定了，其余有按键时鼠标坐标在这里搞
 			SetCursorPos(mouse.ptXY.x, mouse.ptXY.y);//将光标移动到指定的屏幕坐标
 		switch (mouse.nAction) {
 		case 0://单击
@@ -218,7 +216,7 @@ int MouseEvent() {//鼠标操作
 		case 0X82://右键放开
 			mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
 			break;
-		
+
 		case 0X24://中键双击
 			mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
 			mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
@@ -234,7 +232,7 @@ int MouseEvent() {//鼠标操作
 			break;
 
 		case 0X08://鼠标移动
-			mouse_event(MOUSEEVENTF_MOVE, mouse.ptXY.x, mouse.ptXY.y, 0, GetMessageExtraInfo()); 
+			mouse_event(MOUSEEVENTF_MOVE, mouse.ptXY.x, mouse.ptXY.y, 0, GetMessageExtraInfo());
 			break;
 		}
 		//鼠标操作处理完后，发消息验证一下
@@ -245,6 +243,48 @@ int MouseEvent() {//鼠标操作
 		OutputDebugString(_T("获取鼠标参数失败！"));
 		return -1;
 	}
+	return 0;
+}
+
+#include <atlimage.h>
+
+int SendScreen() {//远程监控，屏幕截图发送给控制端，这里不需要从控制端获取数据
+	CImage screen;//提供增强的位图支持，能够加载和保存JPEG、GIF、BMP和可移植网络图形格式PNG的图像。CImage里面封装了很多关于图形图像的操作，非常适合Windows下的GDI编程(图形设备接口)
+	//获取屏幕的句柄
+	HDC hdcScreen = ::GetDC(NULL);//检索指定窗口或整个屏幕工作区的设备上下文(DC)的句柄。NULL表示检索整个屏幕的DC
+	int nBitPerPixel = GetDeviceCaps(hdcScreen, BITSPIXEL);//检索指定屏幕的特定信息  BITSPIXEL指每个像素相邻的颜色位数
+	int nWidth = GetDeviceCaps(hdcScreen, HORZRES);//屏幕的宽度，以像素为单位
+	int nHeight = GetDeviceCaps(hdcScreen, VERTRES);//屏幕的高度，以光栅线为单位
+	screen.Create(nWidth, nHeight, nBitPerPixel);//创建CImage位图并将其附加到先前构造的CImage对象
+	BitBlt(screen.GetDC(), 0, 0, nWidth, nHeight, hdcScreen, 0, 0, SRCCOPY);//从指定源设备上下文到目标设备上下文中的像素矩形对应的颜色数据的位块传输；screen.GetDC()检索当前已选择图像的设备上下文；SRCCOPY 将源矩形直接复制到目标矩形
+	ReleaseDC(NULL, hdcScreen);//释放源设备上下文，与GetDC对应
+	screen.ReleaseDC();//释放使用 CImage 类检索的目标设备上下文。
+
+	HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, 0);//用来存储流内容；从堆分配指定的字节数，全局内存对象句柄，GMEM_MOVEABLE 分配可移动内存;
+	if (hMem == NULL) {
+		TRACE("分配移动内存失败errno=%d\n", GetLastError());
+		return -1;
+	}
+	IStream* pStream = NULL;//新的流对象接口指针
+	HRESULT ret = CreateStreamOnHGlobal(hMem, TRUE, &pStream);//创建一个流对象，使用HGLOBAL内存句柄来存储流内容，接口指向IStream* 的地址；TRUR自动释放流对象的基础句柄。
+	if (ret == S_OK) {//S_OK函数执行成功
+		screen.Save(pStream, Gdiplus::ImageFormatPNG);//将图片存储到流中
+		LARGE_INTEGER bg = { 0 };
+		pStream->Seek(bg, STREAM_SEEK_SET, NULL);//将查找指针更改为新位置。bg表示流对象指针的偏移量
+		PBYTE pdata = (PBYTE)GlobalLock(hMem);//返回该对象内存块的第一个字节的指针。
+		SIZE_T nSize = GlobalSize(hMem);//检索全局内存对象的当前大小(以字节为单位)
+		CPacket pack(6, (const char*)pdata, nSize);
+		CServerSocket::getInstance()->Send(pack);
+	}
+	GlobalUnlock(hMem);//用于解锁由GlobalLock 函数锁定的内存块
+	pStream->Release(); //用于释放IStream 接口对象所占用的资源
+
+	//screen.Save(_T("屏幕截图.png"), Gdiplus::ImageFormatPNG);//网络的稳定性更重要，png图像更准确，细节，无损压缩，这里选择用png图像
+
+	//ULONGLONG tick=GetTickCount64();//GetTickCount64()检索自系统启动以来已用过的毫秒数。相比于GetTickCount，GetTickCount64可提供更长的计时范围。
+	//screen.Save(_T("屏幕截图.jpg"),Gdiplus::ImageFormatJPEG);//将图像另存为指定类型；这里填的是屏幕截图的命名，而不是路径
+	//TRACE("jpg:%d\n", GetTickCount64() - tick);
+
 	return 0;
 }
 
@@ -291,7 +331,7 @@ int main()
 			//}
 
 			// TODO:新功能 文件处理
-			int nCmd = 0;//命令
+			int nCmd = 6;//控制命令
 			switch (nCmd) {
 			case 1://查看磁盘分区
 				MakeDriverInfo();
@@ -308,8 +348,8 @@ int main()
 			case 5://鼠标操作
 				MouseEvent();
 				break;
-			default:
-
+			case 6://远程监控，发送屏幕截图给控制端
+				SendScreen();
 				break;
 			}
 
