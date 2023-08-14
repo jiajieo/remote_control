@@ -288,6 +288,91 @@ int SendScreen() {//远程监控，屏幕截图发送给控制端，这里不需
 	return 0;
 }
 
+int DelFile() {//删除文件
+	std::string strPath;
+	CServerSocket::getInstance()->GetFilePath(strPath);
+	if (std::remove(strPath.c_str()) == 0) {
+		OutputDebugString(_T("文件删除成功"));
+		char data[] = "删除文件成功!";
+		CPacket pack(7, data, strlen(data));
+		CServerSocket::getInstance()->Send(pack);
+	}
+	else {
+		OutputDebugString(_T("文件删除失败"));
+		char data[] = "删除文件失败!";
+		CPacket pack(7, data, strlen(data));
+		CServerSocket::getInstance()->Send(pack);
+	}
+	return 0;
+}
+
+#include "LockDialog.h"
+CLockDialog dlg;//定义在全局，为了确保整个程序都可以访问该对话框
+unsigned threadid;
+
+unsigned __stdcall threadLockDlg(void* arg) {//锁机不能放在主线程里，否则程序会一直循环在锁机函数里，外部接收不到解锁命令，所以这里将锁机部分放在子线程里
+	//创建（初始化）对话框
+	dlg.Create(IDD_DIALOG_LOCK, NULL);//因为如果被销毁了，下次在想锁机的话，该对话框就创建不了了，所以将对话框的创建放在锁机函数里
+	dlg.ShowWindow(SW_SHOW);//显示窗口，设置窗口的可见性
+	//设置窗口大小
+	RECT rect;
+	rect.left = 0;
+	rect.top = 0;
+	rect.right = GetSystemMetrics(SM_CXFULLSCREEN);//检索主显示器全屏窗口工作区宽度
+	rect.bottom = GetSystemMetrics(SM_CYFULLSCREEN) + 30;//检索主显示器全屏窗口工作区高度(以像素为单位)
+	TRACE("right:%d  bottom:%d\n", rect.right, rect.bottom);
+	dlg.MoveWindow(&rect);//更改窗口的位置和尺寸
+	//窗口置顶
+	dlg.SetWindowPos(&dlg.wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);//更改子窗口的位置，将它设置到最顶部,SWP_NOSIZE 保留当前大小, SWP_NOMOVE 保留当前位置
+	//这是没有显示窗口是因为缺少消息循环
+	dlg.UpdateWindow();//刷新窗口
+	//隐藏任务栏和鼠标
+	ShowWindow(FindWindow(_T("Shell_TrayWnd"), NULL), SW_HIDE);
+	ShowCursor(FALSE);//隐藏鼠标，锁机之前隐藏鼠标，锁机之后显示鼠标
+	//限制鼠标的活动范围
+		//dlg.GetWindowRect(&rect);//获取CWnd对话框的屏幕坐标
+	rect.left = rect.left + 1;//左上角x坐标
+	rect.right = rect.left + 1;//右下角x坐标
+	rect.bottom = rect.top + 1;//右下角y坐标
+	rect.top = rect.top + 1;//左上角y坐标
+	ClipCursor(&rect);//限制鼠标的活动范围
+	//对话框消息循环
+	MSG msg;
+	while (GetMessage(&msg, NULL, 0, 0)) {
+		TranslateMessage(&msg);//将虚拟秘钥消息转换为字符消息
+		DispatchMessage(&msg);//分配消息给对应的窗口进行处理
+		if (msg.message == WM_KEYDOWN) {//WM_KEYDOWN 按下非系统键(未按下Alt键时按下的键)
+			TRACE("message:%08X  wParam:%08X  lParam:%08X\n", msg.message, msg.wParam, msg.lParam);//08X表示以16进制输出8个字符
+			if (0X1B == msg.wParam) {//只有按键为Esc键时才会销毁窗口。
+				dlg.DestroyWindow();//销毁窗口
+				break;
+			}
+		}
+	}
+	ShowCursor(TRUE);//显示鼠标
+	ShowWindow(FindWindow(_T("Shell_TrayWnd"), NULL), SW_SHOW);//显示任务栏
+	_endthreadex(0);//终止由_beginthread 创建的线程
+	return 0;
+}
+
+int LockMachine() {//锁机
+	if (dlg.m_hWnd == NULL || dlg.m_hWnd == INVALID_HANDLE_VALUE) {//锁机窗口不存在或创建失败；防止锁机重复执行
+		_beginthreadex(NULL,0,threadLockDlg,NULL,0,&threadid);
+	}
+	else {
+		TRACE("锁机重复了");
+	}
+	CPacket pack(8, NULL, 0);
+	CServerSocket::getInstance()->Send(pack);
+	return 0;
+}
+
+int UnLockMachine() {//解锁
+	//dlg.SendMessage(WM_KEYDOWN, 0X1B, 0X10001);
+	PostThreadMessage(threadid, WM_KEYDOWN, 0X1B, 0X10001);//将消息发送到指定线程的消息队列
+	return 0;
+}
+
 int main()
 {
 	int nRetCode = 0;
@@ -329,9 +414,9 @@ int main()
 			//	int ret = pServer->Recv();
 			//	//TODO:
 			//}
-
+			//dlg.Create(IDD_DIALOG_LOCK,NULL);//非模态对话框的创建 将非模态对话框的创建在主函数中完成，是确保非模态对话框的创建在程序启东时就完成，避免程序在运行过程中动态创建对话框可能带来的延迟和不确定性，同时在主函数中创建对话框可以更好地控制对话框的生命周期和与其他组件的交互。
 			// TODO:新功能 文件处理
-			int nCmd = 6;//控制命令
+			int nCmd = 8;//控制命令
 			switch (nCmd) {
 			case 1://查看磁盘分区
 				MakeDriverInfo();
@@ -351,6 +436,23 @@ int main()
 			case 6://远程监控，发送屏幕截图给控制端
 				SendScreen();
 				break;
+			case 7://删除文件
+				DelFile();
+				break;
+			case 8://锁机
+				LockMachine();
+				//Sleep(50);//等待当前线程的执行
+				//LockMachine();
+				break;
+			case 9://解锁
+				UnLockMachine();
+				break;
+			}
+			Sleep(5000);
+			UnLockMachine();
+
+			while ((dlg.m_hWnd != NULL)) {
+				Sleep(100);//等待线程执行结束；不能直接退出，因为线程还未析构
 			}
 
 		}

@@ -204,7 +204,7 @@ public:
 	}
 
 	bool GetFilePath(std::string& strPath) {//获取控制端想要访问的路径
-		if ((m_pack.sCmd == 2) || (m_pack.sCmd == 3)|| (m_pack.sCmd == 4)) {//控制命令2和3都可以获取要访问的路径
+		if ((m_pack.sCmd == 2) || (m_pack.sCmd == 3)|| (m_pack.sCmd == 4)||(m_pack.sCmd==7)) {//控制命令2和3都可以获取要访问的路径
 			strPath = m_pack.strData;
 			return true;
 		}
