@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -108,8 +109,8 @@ public://包数据是外部需要调用到的，所以这里用public
 };
 #pragma pack(pop)
 
-typedef struct mouseev{
-	mouseev(){//初始化
+typedef struct mouseev {
+	mouseev() {//初始化
 		nAction = 0;
 		nButton = 0;
 		ptXY.x = 0;
@@ -118,65 +119,68 @@ typedef struct mouseev{
 	WORD nAction;//首先是描述动作的:点击(单击、双击)、移动
 	WORD nButton;//左键、右键、中键
 	POINT ptXY;//坐标
-}MOUSEEV,*PMOUSEEV;
+}MOUSEEV, * PMOUSEEV;
+
+std::string GetError(int a) {//a:WSAGetLastError() 函数的参数一定不能写宏定义的。
+	std::string Err;
+	LPTSTR ErrnoText = NULL;
+	//获取错误消息
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER,
+		NULL, a, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&ErrnoText, 0, NULL);
+	Err = (char*)ErrnoText;
+	if (ErrnoText != NULL) {
+		LocalFree(ErrnoText);//释放内存对象句柄
+		ErrnoText = NULL;
+	}
+	return Err;
+}
 
 #define BUFFER_SIZE 4096//接收数据包的缓冲区大小
-class CServerSocket
+class CClientSocket
 {
 public:
-	static CServerSocket* getInstance() {//静态函数没有this指针，无法直接访问成员变量；静态是全局的跟this指针是无关的，完全可以脱离this指针来调用这个静态方法
+	static CClientSocket* getInstance() {//静态函数没有this指针，无法直接访问成员变量；静态是全局的跟this指针是无关的，完全可以脱离this指针来调用这个静态方法
 		if (m_instance == NULL) {
-			m_instance = new CServerSocket();//new 伴随着delete，一定要清空，否则无法执行析构
+			m_instance = new CClientSocket();//new 伴随着delete，一定要清空，否则无法执行析构
 		}
 		return m_instance;
 	}
 
-	bool InitSocket() {//套接字创建及监听
+	bool InitSocket(const std::string& nIP) {//套接字创建及监听
 		//1 创建套接字
-		m_sockSrv = socket(PF_INET, SOCK_STREAM, 0);//AF_INET和PF_INET混用没太大问题，但指定上建立socket指定协议应该用PF_INET，设置地址时用AF_INET；这里使用TCP而不是UDP，因为要求发送的数据是可信的
-		if (INVALID_SOCKET == m_sockSrv) {
-			TRACE("sockSrv error=%d\n", WSAGetLastError());
+		m_sockCli = socket(PF_INET, SOCK_STREAM, 0);//AF_INET和PF_INET混用没太大问题，但指定上建立socket指定协议应该用PF_INET，设置地址时用AF_INET；这里使用TCP而不是UDP，因为要求发送的数据是可信的
+		if (INVALID_SOCKET == m_sockCli) {
+			AfxMessageBox("socket套接字创建失败!");
 			return false;
 		}
-		//2 bind
-		SOCKADDR_IN addrSrv;
-		memset(&addrSrv, 0, sizeof(addrSrv));//定义的结构体要清空
-		addrSrv.sin_addr.S_un.S_addr = htonl(INADDR_ANY);//用来保存IP地址信息，htonl(INADDR_ANY)在服务端指本机的所有IP地址信息; INADDR_ANY 所有的IP都去监听，保证客户端可以连上来。
-		addrSrv.sin_family = AF_INET;//传输的地址族,IP类型
-		addrSrv.sin_port = htons(6000);//用来保存端口号
-		if (SOCKET_ERROR == bind(m_sockSrv, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR))) {
-			TRACE("bind error=%d\n", WSAGetLastError());
-			return false;
-		}
-		//3 listen
-		if (SOCKET_ERROR == listen(m_sockSrv, 1)) {//远程监控是一对一的，所以监听1个就行
-			TRACE("listen error=%d\n", WSAGetLastError());
-			return false;
-		}
-		return true;
-	}
-
-	bool Accept() {
-		//4 accept
+		//2 connect
 		SOCKADDR_IN addrCli;
-		int len = sizeof(SOCKADDR);
-		m_sockcli = accept(m_sockSrv, (SOCKADDR*)&addrCli, &len);
-		if (m_sockcli == INVALID_SOCKET)
+		memset(&addrCli, 0, sizeof(addrCli));//定义的结构体要清空
+		addrCli.sin_addr.S_un.S_addr = inet_addr(nIP.c_str());//用来保存IP地址信息，htonl(INADDR_ANY)在服务端指本机的所有IP地址信息; INADDR_ANY 所有的IP都去监听，保证客户端可以连上来。
+		addrCli.sin_family = AF_INET;//传输的地址族,IP类型
+		addrCli.sin_port = htons(6000);//用来保存端口号
+		if (addrCli.sin_addr.s_addr == INADDR_NONE) {//INADDR_NONE 指IP地址不合法或为空
+			AfxMessageBox("指定的IP地址不存在！");
 			return false;
+		}
+		if (SOCKET_ERROR == connect(m_sockCli, (sockaddr*)&addrCli, sizeof(SOCKADDR))) {
+			TRACE("connect error=%d %s\n", WSAGetLastError(),GetError(WSAGetLastError()).c_str());
+			AfxMessageBox("connect连接失败!");//在屏幕上显示一个消息框; 改成多字节字符
+			return false;
+		}
 		return true;
-		//closesocket(m_sockcli);
 	}
-	int Recv() {
-		if (m_sockcli == INVALID_SOCKET)return -1;//如果分机发生错误是没办法接收发送的
+	int Recv(std::string strData) {
+		if (m_sockCli == INVALID_SOCKET)return -1;//如果分机发生错误是没办法接收发送的
 		char buffer[BUFFER_SIZE] = "";
 		//char* buffer = new char[BUFFER_SIZE];
 		memset(buffer, 0, sizeof(buffer));
 		size_t index = 0;//数据包接收定位
 		//数据接收处理
 		while (true) {
-			size_t len = recv(m_sockcli, buffer + index, BUFFER_SIZE - index, 0);
+			size_t len = recv(m_sockCli, buffer + index, BUFFER_SIZE - index, 0);
 			if (len == SOCKET_ERROR) {
-				TRACE("recv error=%d\n", WSAGetLastError());
+				TRACE("recv error=%d %s\n", WSAGetLastError(), GetError(WSAGetLastError()).c_str());
 				return -1;
 			}
 			index += len;
@@ -185,7 +189,9 @@ public:
 			if (len > 0) {//解析成功
 				memmove(buffer, buffer + len, BUFFER_SIZE - len);//将buffer len后面的数据移到包头继续工作。memmove将缓冲区移到另一个缓冲区
 				index -= len;
-				return m_pack.sCmd;//将收到的命令返回
+				//memcpy((void*)strData.c_str(), m_pack.strData.c_str(), m_pack.strData.length());
+				strData = m_pack.strData.c_str();//将收到的命令返回
+				return 0;
 			}
 			else {
 				memset(buffer, 0, BUFFER_SIZE);
@@ -195,16 +201,16 @@ public:
 		return -1;
 	}
 	bool Send(const char* pData, int nSize) {
-		if (m_sockcli == INVALID_SOCKET)return false;
-		return send(m_sockcli, pData, nSize, 0) > 0;
+		if (m_sockCli == INVALID_SOCKET)return false;
+		return send(m_sockCli, pData, nSize, 0) > 0;
 	}
 	bool Send(CPacket& pack) {//函数重载 加一个可以发送数据包的Send函数
-		if (m_sockcli == INVALID_SOCKET)return false;
-		return send(m_sockcli, pack.Data(), pack.Size(), 0) > 0;//将CPacket类转成const char*型(const char*)&pack
+		if (m_sockCli == INVALID_SOCKET)return false;
+		return send(m_sockCli, pack.Data(), pack.Size(), 0) > 0;//将CPacket类转成const char*型(const char*)&pack
 	}
 
 	bool GetFilePath(std::string& strPath) {//获取控制端想要访问的路径
-		if ((m_pack.sCmd == 2) || (m_pack.sCmd == 3)|| (m_pack.sCmd == 4)||(m_pack.sCmd==7)) {//控制命令2和3都可以获取要访问的路径
+		if ((m_pack.sCmd == 2) || (m_pack.sCmd == 3) || (m_pack.sCmd == 4) || (m_pack.sCmd == 7)) {//控制命令2和3都可以获取要访问的路径
 			strPath = m_pack.strData;
 			return true;
 		}
@@ -220,24 +226,21 @@ public:
 	}
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
-	CServerSocket& operator = (const CServerSocket& ss) {
-		m_sockcli = ss.m_sockcli;
-		m_sockSrv = ss.m_sockSrv;
+	CClientSocket& operator = (const CClientSocket& ss) {
+		m_sockCli = ss.m_sockCli;
 	}
-	CServerSocket(const CServerSocket& ss) {
-		m_sockcli = ss.m_sockcli;
-		m_sockSrv = ss.m_sockSrv;
+	CClientSocket(const CClientSocket& ss) {
+		m_sockCli = ss.m_sockCli;
 	}
-	CServerSocket() {
-		m_sockcli = INVALID_SOCKET;
-		m_sockSrv = INVALID_SOCKET;
+	CClientSocket() {
+		m_sockCli = INVALID_SOCKET;
 		if (WSAServerInit() == FALSE) {
 			MessageBox(NULL, _T("无法初始化网络套接字库"), _T("套接字初始化错误"), MB_OK | MB_ICONERROR);
 			exit(0);//关闭所有文件，终止正在执行的进程
 		}
 	}
-	~CServerSocket() {
-		closesocket(m_sockSrv);
+	~CClientSocket() {
+		closesocket(m_sockCli);
 		WSACleanup();//在判断有没有执行析构函数时要把等待接收发送部分注释掉
 	}
 
@@ -260,7 +263,7 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 
 	static void releaseInstance() {//处理m_instance要搞成静态的
 		if (m_instance != NULL) {
-			CServerSocket* tmp = m_instance;
+			CClientSocket* tmp = m_instance;
 			m_instance = NULL;
 			delete tmp;
 		}
@@ -269,19 +272,16 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 	class CHelper {//因为CServerSocket类的析构没被调用到，所以在定义一个类来处理CServerSocket的析构问题
 	public:
 		CHelper() {
-			CServerSocket::getInstance();
+			CClientSocket::getInstance();
 		}
 		~CHelper() {
-			CServerSocket::releaseInstance();
+			CClientSocket::releaseInstance();
 		}
 	};
 
 private:
-	static CServerSocket* m_instance;//这里因为是类里的静态函数要访问的实例，所以要设为静态的
+	static CClientSocket* m_instance;//这里因为是类里的静态函数要访问的实例，所以要设为静态的
 	static CHelper m_helper;
-	SOCKET m_sockSrv;//定义套接字;非静态变量在构造函数里初始化
-	SOCKET m_sockcli;
+	SOCKET m_sockCli;//定义套接字;非静态变量在构造函数里初始化
 	CPacket m_pack;//接收的数据包处理
 };
-
-//extern CServerSocket server;
