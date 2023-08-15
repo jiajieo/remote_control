@@ -357,7 +357,7 @@ unsigned __stdcall threadLockDlg(void* arg) {//锁机不能放在主线程里，
 
 int LockMachine() {//锁机
 	if (dlg.m_hWnd == NULL || dlg.m_hWnd == INVALID_HANDLE_VALUE) {//锁机窗口不存在或创建失败；防止锁机重复执行
-		_beginthreadex(NULL,0,threadLockDlg,NULL,0,&threadid);
+		_beginthreadex(NULL,0,threadLockDlg,NULL,0,&threadid);//防止网络通信的时候锁机不会阻塞在这，导致无法退出循环接收外部解锁命令
 	}
 	else {
 		TRACE("锁机重复了");
@@ -369,7 +369,7 @@ int LockMachine() {//锁机
 
 int UnLockMachine() {//解锁
 	//dlg.SendMessage(WM_KEYDOWN, 0X1B, 0X10001);
-	PostThreadMessage(threadid, WM_KEYDOWN, 0X1B, 0X10001);//将消息发送到指定线程的消息队列
+	PostThreadMessage(threadid, WM_KEYDOWN, 0X1B, 0X10001);//将消息发送到指定线程的消息队列,发送按下"Esc"键解锁。
 	return 0;
 }
 
@@ -448,13 +448,11 @@ int main()
 				UnLockMachine();
 				break;
 			}
-			Sleep(5000);
-			UnLockMachine();
-
+			Sleep(5000);//等待当前锁机线程执行5s
+			UnLockMachine();//解锁
 			while ((dlg.m_hWnd != NULL)) {
 				Sleep(100);//等待线程执行结束；不能直接退出，因为线程还未析构
 			}
-
 		}
 	}
 	else
