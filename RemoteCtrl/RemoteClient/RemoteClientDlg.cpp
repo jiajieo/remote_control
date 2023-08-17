@@ -2,11 +2,13 @@
 // RemoteClientDlg.cpp: 实现文件
 //
 
+
 #include "pch.h"
 #include "framework.h"
 #include "RemoteClient.h"
 #include "RemoteClientDlg.h"
 #include "afxdialogex.h"
+
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -20,15 +22,15 @@ class CAboutDlg : public CDialogEx
 public:
 	CAboutDlg();
 
-// 对话框数据
+	// 对话框数据
 #ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_ABOUTBOX };
 #endif
 
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支持
 
-// 实现
+	// 实现
 protected:
 	DECLARE_MESSAGE_MAP()
 };
@@ -65,6 +67,7 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+	ON_BN_CLICKED(IDC_BTN_CONNECT, &CRemoteClientDlg::OnBnClickedBtnConnect)
 END_MESSAGE_MAP()
 
 
@@ -156,3 +159,22 @@ HCURSOR CRemoteClientDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+
+
+void CRemoteClientDlg::OnBnClickedBtnConnect()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CClientSocket* hSocket = CClientSocket::getInstance();
+	if (hSocket != NULL) {
+		if (hSocket->InitSocket("127.0.0.1") == true) {
+			CPacket pack(1981, NULL, 0);
+			hSocket->Send(pack);
+			int ret = hSocket->Recv();
+			if (ret == 1981)
+				MessageBox("连接成功");
+		}
+		//CPacket pack(8, "aaa", 3);
+		//hSocket->Send(pack);
+		hSocket->CloseClient();
+	}
+}

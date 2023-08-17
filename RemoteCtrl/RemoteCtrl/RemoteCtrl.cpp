@@ -17,19 +17,19 @@ CWinApp theApp;
 
 using namespace std;
 
-void Dump(BYTE* pData, size_t nSize) {//查看输出打包好的数据
-	std::string strOut;
-	char buf[10] = "";
-	for (size_t i = 0; i < nSize; i++) {
-		memset(buf, 0, sizeof(buf));
-		snprintf(buf, sizeof(buf), "%02X ", pData[i] & 0xFF);//%02X:X表示以16进制输出，02表示以两位输出
-		strOut += buf;
-	}
-	strOut += "\n";
-	OutputDebugStringA(strOut.c_str());//将字符串发送到调试器进行显示
-	//结果发现数据不对：FFFECCCC090000000100CCCCD8EF41，然后首先将CPacket类的字节进行对齐操作
-	//TRACE("%s\r\n", strOut.c_str());
-}
+//void Dump(BYTE* pData, size_t nSize) {//查看输出打包好的数据
+//	std::string strOut;
+//	char buf[10] = "";
+//	for (size_t i = 0; i < nSize; i++) {
+//		memset(buf, 0, sizeof(buf));
+//		snprintf(buf, sizeof(buf), "%02X ", pData[i] & 0xFF);//%02X:X表示以16进制输出，02表示以两位输出
+//		strOut += buf;
+//	}
+//	strOut += "\n";
+//	OutputDebugStringA(strOut.c_str());//将字符串发送到调试器进行显示
+//	//结果发现数据不对：FFFECCCC090000000100CCCCD8EF41，然后首先将CPacket类的字节进行对齐操作
+//	//TRACE("%s\r\n", strOut.c_str());
+//}
 
 int MakeDriverInfo() {//创建一个磁盘分区
 	std::string result;
@@ -357,7 +357,7 @@ unsigned __stdcall threadLockDlg(void* arg) {//锁机不能放在主线程里，
 
 int LockMachine() {//锁机
 	if (dlg.m_hWnd == NULL || dlg.m_hWnd == INVALID_HANDLE_VALUE) {//锁机窗口不存在或创建失败；防止锁机重复执行
-		_beginthreadex(NULL,0,threadLockDlg,NULL,0,&threadid);//防止网络通信的时候锁机不会阻塞在这，导致无法退出循环接收外部解锁命令
+		_beginthreadex(NULL, 0, threadLockDlg, NULL, 0, &threadid);//防止网络通信的时候锁机不会阻塞在这，导致无法退出循环接收外部解锁命令
 	}
 	else {
 		TRACE("锁机重复了");
@@ -370,6 +370,56 @@ int LockMachine() {//锁机
 int UnLockMachine() {//解锁
 	//dlg.SendMessage(WM_KEYDOWN, 0X1B, 0X10001);
 	PostThreadMessage(threadid, WM_KEYDOWN, 0X1B, 0X10001);//将消息发送到指定线程的消息队列,发送按下"Esc"键解锁。
+	return 0;
+}
+
+int ConnectTect() {
+	CPacket pack(1981, NULL, 0);
+	CServerSocket::getInstance()->Send(pack);
+	return 0;
+}
+
+int ExcuteCommand(int nCmd) {//命令分类处理
+	int ret;
+	switch (nCmd) {
+	case 1://查看磁盘分区
+		ret = MakeDriverInfo();
+		break;
+	case 2://查看指定目录下的文件
+		ret = MakeDirectoryInfo();
+		break;
+	case 3://打开文件
+		ret = RunFile();
+		break;
+	case 4://下载文件
+		ret = DownloadFile();
+		break;
+	case 5://鼠标操作
+		ret = MouseEvent();
+		break;
+	case 6://远程监控，发送屏幕截图给控制端
+		ret = SendScreen();
+		break;
+	case 7://删除文件
+		ret = DelFile();
+		break;
+	case 8://锁机
+		ret = LockMachine();
+		Sleep(50);//等待当前线程的执行
+		//LockMachine();
+		break;
+	case 9://解锁
+		ret = UnLockMachine();
+		while ((dlg.m_hWnd != NULL)) {
+			Sleep(100);//等待线程执行结束；不能直接退出，因为线程还未析构
+		}
+		break;
+	case 1981://测试连接
+		ConnectTect();
+		break;
+	}
+	//Sleep(5000);//等待当前锁机线程执行5s
+	//UnLockMachine();//解锁
 	return 0;
 }
 
@@ -390,69 +440,54 @@ int main()
 		}
 		else
 		{
-			//// TODO: 在此处为应用程序的行为编写代码。
-			//// 1.通过静态函数调用网络库初始化
-			//CServerSocket* pServer = CServerSocket::getInstance();//类里面的静态函数不用声明对象可以直接调用。
-			//if (pServer != NULL) {
-			//	// 2.套接字的创建到监听
-			//	if (pServer->InitSocket() == false) {
-			//		MessageBox(NULL, _T("套接字创建监听失败！"), _T("错误"), MB_OK | MB_ICONERROR);//NULL表示悬空弹窗窗口
-			//		exit(0);//终止进程
-			//	}
-			//}
-			//int count = 0;// 3.提供3次连接机会；服务端前面的初始化网络库和创建套接字不会变也不会关，只处理下面的被监控等待连接操作
-			//while (pServer != NULL) {
-			//	if (pServer->Accept() == false) {
-			//		if (count >= 3) {
-			//			MessageBox(NULL, _T("服务端多次连接失败！结束程序"), _T("错误"), MB_OK | MB_ICONERROR);//NULL表示悬空弹窗窗口
-			//			exit(0);
-			//		}
-			//		MessageBox(NULL, _T("服务端连接失败，自动重试！"), _T("错误"), MB_OK | MB_ICONERROR);//NULL表示悬空弹窗窗口
-			//		count++;
-			//	}
-			//	//连接成功处理操作
-			//	int ret = pServer->Recv();
-			//	//TODO:
-			//}
+			// TODO: 在此处为应用程序的行为编写代码。
+			// 1.通过静态函数调用网络库初始化
+			CServerSocket* pServer = CServerSocket::getInstance();//类里面的静态函数不用声明对象可以直接调用。
+			if (pServer != NULL) {
+				// 2.套接字的创建到监听
+				if (pServer->InitSocket() == false) {
+					MessageBox(NULL, _T("套接字创建监听失败！"), _T("错误"), MB_OK | MB_ICONERROR);//NULL表示悬空弹窗窗口
+					exit(0);//终止进程
+				}
+			}
+			int count = 0;// 3.提供3次连接机会；服务端前面的初始化网络库和创建套接字不会变也不会关，只处理下面的被监控等待连接操作
+			while (pServer != NULL) {
+				if (pServer->Accept() == false) {
+					if (count >= 3) {
+						MessageBox(NULL, _T("服务端多次连接失败！结束程序"), _T("错误"), MB_OK | MB_ICONERROR);//NULL表示悬空弹窗窗口
+						exit(0);
+					}
+					MessageBox(NULL, _T("服务端连接失败，自动重试！"), _T("错误"), MB_OK | MB_ICONERROR);//NULL表示悬空弹窗窗口
+					count++;
+				}
+				ExcuteCommand(1981);//如果连接成功，发送测试
+				//连接成功处理操作
+				int ret = pServer->Recv();
+				if (ret == 1981) {
+					TRACE("1981连接测试成功\n");
+					pServer->CloseClient();
+				}
+				//if (ret == 0) {
+				//	ret = ExcuteCommand(pServer->Getpacket().sCmd);//执行命令
+				//	if (ret != 0) {//命令执行成功会返回0
+				//		TRACE("执行命令失败:sCmd=%d  ret=%d\n", pServer->Getpacket().sCmd, ret);
+				//	}
+				//	//远程控制采用短连接
+				//	pServer->CloseClient();
+				//}
+				//else if (ret > 0) {
+				//	ret=ExcuteCommand(ret);
+				//	if (ret != 0) {//命令执行成功会返回0
+				//		TRACE("执行命令失败:sCmd=%d  ret=%d\n", pServer->Getpacket().sCmd, ret);
+				//	}
+				//	pServer->CloseClient();
+				//}
+				//TODO:
+
+			}
 			//dlg.Create(IDD_DIALOG_LOCK,NULL);//非模态对话框的创建 将非模态对话框的创建在主函数中完成，是确保非模态对话框的创建在程序启东时就完成，避免程序在运行过程中动态创建对话框可能带来的延迟和不确定性，同时在主函数中创建对话框可以更好地控制对话框的生命周期和与其他组件的交互。
-			// TODO:新功能 文件处理
-			int nCmd = 8;//控制命令
-			switch (nCmd) {
-			case 1://查看磁盘分区
-				MakeDriverInfo();
-				break;
-			case 2://查看指定目录下的文件
-				MakeDirectoryInfo();
-				break;
-			case 3://打开文件
-				RunFile();
-				break;
-			case 4://下载文件
-				DownloadFile();
-				break;
-			case 5://鼠标操作
-				MouseEvent();
-				break;
-			case 6://远程监控，发送屏幕截图给控制端
-				SendScreen();
-				break;
-			case 7://删除文件
-				DelFile();
-				break;
-			case 8://锁机
-				LockMachine();
-				//Sleep(50);//等待当前线程的执行
-				//LockMachine();
-				break;
-			case 9://解锁
-				UnLockMachine();
-				break;
-			}
-			Sleep(5000);//等待当前锁机线程执行5s
-			UnLockMachine();//解锁
-			while ((dlg.m_hWnd != NULL)) {
-				Sleep(100);//等待线程执行结束；不能直接退出，因为线程还未析构
-			}
+
+
 		}
 	}
 	else

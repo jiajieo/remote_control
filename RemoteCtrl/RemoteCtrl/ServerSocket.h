@@ -1,4 +1,5 @@
 #pragma once
+void Dump(BYTE* pData, size_t nSize);
 
 #pragma pack(push)
 #pragma pack(1)
@@ -26,11 +27,12 @@ public:
 		else {
 			strData.clear();
 		}
-		for (size_t i = 0; i < nSize; i++) {
+		sSum = 0;
+		for (size_t i = 0; i < strData.size(); i++) {
 			sSum += ((BYTE)strData[i] & 0xFF);
 		}
 	}
-	CPacket(const BYTE* pData, size_t& nSize) {//方便解析数据，随便丢进来一个数据进行解析  BYTE:unsigned char BYTE 1字节
+	CPacket(const BYTE* pData, size_t nSize) {//方便解析数据，随便丢进来一个数据进行解析  BYTE:unsigned char BYTE 1字节
 		size_t i = 0;//字节长度跟踪
 		for (; i < nSize; i++) {
 			if (*(WORD*)(pData + i) == 0xFEFF) {//找到一个包头
@@ -39,7 +41,7 @@ public:
 				break;
 			}
 		}
-		if ((i + 4 + 2 + 2) >= nSize) {//未找到包头或包头后无数据;i+4+2+2是除去包长度、命令、和校验后判断是否还有数据，如果没有直接退出函数
+		if ((i + 4 + 2 + 2) > nSize) {//未找到包头或包头后无数据;i+4+2+2是除去包长度、命令、和校验后判断是否还有数据，如果没有直接退出函数
 			nSize = 0;//将nSize清0
 			return;
 		}
@@ -182,6 +184,7 @@ public:
 			index += len;
 			len = index;
 			m_pack = CPacket((BYTE*)buffer, len);//解析数据
+			//Dump((BYTE*)m_pack.Data(), m_pack.Size());
 			if (len > 0) {//解析成功
 				memmove(buffer, buffer + len, BUFFER_SIZE - len);//将buffer len后面的数据移到包头继续工作。memmove将缓冲区移到另一个缓冲区
 				index -= len;
@@ -194,6 +197,11 @@ public:
 		}
 		return -1;
 	}
+
+	CPacket Getpacket() {//获取数据包用于验证
+		return m_pack;
+	}
+
 	bool Send(const char* pData, int nSize) {
 		if (m_sockcli == INVALID_SOCKET)return false;
 		return send(m_sockcli, pData, nSize, 0) > 0;
@@ -217,6 +225,11 @@ public:
 			return true;
 		}
 		return false;
+	}
+
+	void CloseClient() {
+		closesocket(m_sockcli);
+		m_sockcli = INVALID_SOCKET;
 	}
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造

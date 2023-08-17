@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <vector>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -27,7 +28,8 @@ public:
 		else {
 			strData.clear();
 		}
-		for (size_t i = 0; i < nSize; i++) {
+		sSum = 0;
+		for (size_t i = 0; i < strData.size(); i++) {
 			sSum += ((BYTE)strData[i] & 0xFF);
 		}
 	}
@@ -40,7 +42,7 @@ public:
 				break;
 			}
 		}
-		if ((i + 4 + 2 + 2) >= nSize) {//未找到包头或包头后无数据;i+4+2+2是除去包长度、命令、和校验后判断是否还有数据，如果没有直接退出函数
+		if ((i + 4 + 2 + 2) > nSize) {//未找到包头或包头后无数据;i+4+2+2是除去包长度、命令、和校验后判断是否还有数据，如果没有直接退出函数
 			nSize = 0;//将nSize清0
 			return;
 		}
@@ -121,19 +123,7 @@ typedef struct mouseev {
 	POINT ptXY;//坐标
 }MOUSEEV, * PMOUSEEV;
 
-std::string GetError(int a) {//a:WSAGetLastError() 函数的参数一定不能写宏定义的。
-	std::string Err;
-	LPTSTR ErrnoText = NULL;
-	//获取错误消息
-	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER,
-		NULL, a, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&ErrnoText, 0, NULL);
-	Err = (char*)ErrnoText;
-	if (ErrnoText != NULL) {
-		LocalFree(ErrnoText);//释放内存对象句柄
-		ErrnoText = NULL;
-	}
-	return Err;
-}
+std::string GetError(int a);//a:WSAGetLastError() 函数的参数一定不能写宏定义的。
 
 #define BUFFER_SIZE 4096//接收数据包的缓冲区大小
 class CClientSocket
@@ -156,7 +146,7 @@ public:
 		//2 connect
 		SOCKADDR_IN addrCli;
 		memset(&addrCli, 0, sizeof(addrCli));//定义的结构体要清空
-		addrCli.sin_addr.S_un.S_addr = inet_addr(nIP.c_str());//用来保存IP地址信息，htonl(INADDR_ANY)在服务端指本机的所有IP地址信息; INADDR_ANY 所有的IP都去监听，保证客户端可以连上来。
+		addrCli.sin_addr.S_un.S_addr = inet_addr(nIP.c_str());//用来保存客户端IP地址信息
 		addrCli.sin_family = AF_INET;//传输的地址族,IP类型
 		addrCli.sin_port = htons(6000);//用来保存端口号
 		if (addrCli.sin_addr.s_addr == INADDR_NONE) {//INADDR_NONE 指IP地址不合法或为空
@@ -170,10 +160,11 @@ public:
 		}
 		return true;
 	}
-	int Recv(std::string strData) {
-		if (m_sockCli == INVALID_SOCKET)return -1;//如果分机发生错误是没办法接收发送的
-		char buffer[BUFFER_SIZE] = "";
+	int Recv() {
+		if (m_sockCli == INVALID_SOCKET)return -1;//如果套接字发生错误是没办法接收发送的
+		//char buffer[BUFFER_SIZE] = "";
 		//char* buffer = new char[BUFFER_SIZE];
+		char* buffer = m_buffer.data();//返回指定向量中第一个元素的指针，这是为了防止因泄露内存导致数据包丢失
 		memset(buffer, 0, sizeof(buffer));
 		size_t index = 0;//数据包接收定位
 		//数据接收处理
@@ -190,8 +181,8 @@ public:
 				memmove(buffer, buffer + len, BUFFER_SIZE - len);//将buffer len后面的数据移到包头继续工作。memmove将缓冲区移到另一个缓冲区
 				index -= len;
 				//memcpy((void*)strData.c_str(), m_pack.strData.c_str(), m_pack.strData.length());
-				strData = m_pack.strData.c_str();//将收到的命令返回
-				return 0;
+				//strData = m_pack.strData.c_str();//将收到的数据返回
+				return m_pack.sCmd;
 			}
 			else {
 				memset(buffer, 0, BUFFER_SIZE);
@@ -225,6 +216,11 @@ public:
 		return false;
 	}
 
+	void CloseClient() {
+		closesocket(m_sockCli);
+		m_sockCli = INVALID_SOCKET;
+	}
+
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 	CClientSocket& operator = (const CClientSocket& ss) {
 		m_sockCli = ss.m_sockCli;
@@ -238,6 +234,7 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 			MessageBox(NULL, _T("无法初始化网络套接字库"), _T("套接字初始化错误"), MB_OK | MB_ICONERROR);
 			exit(0);//关闭所有文件，终止正在执行的进程
 		}
+		m_buffer.resize(BUFFER_SIZE);//为该动态数组设定新的内存大小
 	}
 	~CClientSocket() {
 		closesocket(m_sockCli);
@@ -280,6 +277,7 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 	};
 
 private:
+	std::vector<char> m_buffer;
 	static CClientSocket* m_instance;//这里因为是类里的静态函数要访问的实例，所以要设为静态的
 	static CHelper m_helper;
 	SOCKET m_sockCli;//定义套接字;非静态变量在构造函数里初始化
