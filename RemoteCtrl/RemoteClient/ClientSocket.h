@@ -136,8 +136,12 @@ public:
 		return m_instance;
 	}
 
-	bool InitSocket(const std::string& nIP) {//套接字创建及监听
+	bool InitSocket(DWORD nIP,int port) {//套接字创建及监听
 		//1 创建套接字
+		if (m_sockCli != INVALID_SOCKET) {
+			closesocket(m_sockCli);
+			m_sockCli = INVALID_SOCKET;
+		}
 		m_sockCli = socket(PF_INET, SOCK_STREAM, 0);//AF_INET和PF_INET混用没太大问题，但指定上建立socket指定协议应该用PF_INET，设置地址时用AF_INET；这里使用TCP而不是UDP，因为要求发送的数据是可信的
 		if (INVALID_SOCKET == m_sockCli) {
 			AfxMessageBox("socket套接字创建失败!");
@@ -146,9 +150,9 @@ public:
 		//2 connect
 		SOCKADDR_IN addrCli;
 		memset(&addrCli, 0, sizeof(addrCli));//定义的结构体要清空
-		addrCli.sin_addr.S_un.S_addr = inet_addr(nIP.c_str());//用来保存客户端IP地址信息
+		addrCli.sin_addr.S_un.S_addr =htonl(nIP);//用来保存客户端IP地址信息; inet_addr("")是将IP地址的字符串转换为 IP地址结构体的正确地址; htonl()从整型变量转换到IP地址结构体; ntohl()IP地址结构体转换成整形变量
 		addrCli.sin_family = AF_INET;//传输的地址族,IP类型
-		addrCli.sin_port = htons(6000);//用来保存端口号
+		addrCli.sin_port = htons(port);//用来保存端口号
 		if (addrCli.sin_addr.s_addr == INADDR_NONE) {//INADDR_NONE 指IP地址不合法或为空
 			AfxMessageBox("指定的IP地址不存在！");
 			return false;
@@ -216,9 +220,8 @@ public:
 		return false;
 	}
 
-	void CloseClient() {
-		closesocket(m_sockCli);
-		m_sockCli = INVALID_SOCKET;
+	CPacket Getpacket() {//获取接受到的数据包
+		return m_pack;
 	}
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造

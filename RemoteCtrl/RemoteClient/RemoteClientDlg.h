@@ -33,4 +33,17 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 	afx_msg void OnBnClickedBtnConnect();
+	// 被控端的IP地址
+	DWORD m_servaddress;
+	// 被控端的端口号
+	CString m_port;
+	afx_msg void OnBnClickedBtnViewfile();
+
+private:
+	int SendPacket(WORD nCmd,BYTE* pData=NULL, size_t nSize=0);//发送数据包
+
+private:
+	CClientSocket* m_hSocket;
+public:
+	CTreeCtrl m_tree;
 };

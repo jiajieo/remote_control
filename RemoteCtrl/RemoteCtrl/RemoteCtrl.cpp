@@ -14,6 +14,7 @@
 // 唯一的应用程序对象
 
 CWinApp theApp;
+CServerSocket* pServer;
 
 using namespace std;
 
@@ -44,9 +45,9 @@ int MakeDriverInfo() {//创建一个磁盘分区
 	}
 	//对数据进行打包
 	CPacket pack(1, result.c_str(), result.size());
-	Dump((BYTE*)pack.Data(), pack.Size());
+	//Dump((BYTE*)pack.Data(), pack.Size());
 	//拿到实例发送数据
-	//CServerSocket::getInstance()->Send(pack);
+	pServer->Send(pack);
 	return 0;
 }
 
@@ -83,7 +84,7 @@ int MakeDirectoryInfo() {//查看指定目录下的文件
 		memcpy(tempfile.szFileName, strPath.c_str(), strPath.size());
 		//lstFileInfo.push_back(tempfile);
 		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
-		CServerSocket::getInstance()->Send(pack);
+		pServer->Send(pack);
 		OutputDebugString(_T("该目录不存在！\n"));
 		return -2;
 	}
@@ -100,13 +101,13 @@ int MakeDirectoryInfo() {//查看指定目录下的文件
 		memcpy(tempfile.szFileName, filedata.name, filedata.size);
 		//lstFileInfo.push_back(tempfile);
 		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
-		CServerSocket::getInstance()->Send(pack);
+		pServer->Send(pack);
 	} while (_findnext(hfind, &filedata));//查找下一个名称
 	//发送信息到控制端，但是如果该文件夹有大量的文件，一次性发完效果不是很好，所以要一个一个发，但是从用户体验方面来说，后者与用户有交互，可以随时反馈，所以这里选后者，结构体加一个是否还有后续的判断变量
 	fileinfo tempfile;
 	tempfile.IsHasNext = FALSE;
 	CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
-	CServerSocket::getInstance()->Send(pack);
+	pServer->Send(pack);
 	return 0;
 }
 
@@ -115,7 +116,7 @@ int RunFile() {//这里是运行而不是打开文件是因为有些文件是.ex
 	CServerSocket::getInstance()->GetFilePath(strPath);
 	ShellExecuteA(NULL, (LPCSTR)open, strPath.c_str(), NULL, NULL, SW_SHOW);//对指定文件执行操作，相当于双击文件  ShellExecute是Unicode字符集的，ShellExecuteA是多字符集的，所以这里用后者
 	CPacket pack(3, NULL, NULL);
-	CServerSocket::getInstance()->Send(pack);
+	pServer->Send(pack);
 	return 0;
 }
 
@@ -128,27 +129,27 @@ int DownloadFile() {//下载文件
 	errno_t err = fopen_s(&pFile, strPath.c_str(), "rb");//可读打开一个二进制文件，文本可以通过二进制方式来读，但二进制文件不能文本方式读。
 	if (err != 0) {
 		CPacket pack(4, (char*)data, 8);//下载文件默认长度为0
-		CServerSocket::getInstance()->Send(pack);
+		pServer->Send(pack);
 		return -1;
 	}
 	if (pFile != NULL) {
 		fseek(pFile, 0, SEEK_END);//将文件指针移到指针位置，SEEK_END文件结尾
 		data = _ftelli64(pFile);//如果处理大型文件，就用_ftelli64，即64位有符号整数类型，可处理大于2GB的文件。
 		CPacket pack(4, (char*)data, 8);//将要下载的文件大小发送到控制端
-		CServerSocket::getInstance()->Send(pack);
+		pServer->Send(pack);
 		fseek(pFile, 0, SEEK_SET);//恢复文件指针
 		char buffer[1024] = { 0 };
 		size_t rlen = 0;
 		do {
 			rlen = fread(buffer, 1, sizeof(buffer), pFile);//从流读取数据
 			CPacket pack(4, buffer, rlen);
-			CServerSocket::getInstance()->Send(pack);
+			pServer->Send(pack);
 			memset(buffer, 0, sizeof(buffer));
 		} while (rlen > 0);//只要读到了就可以继续读或rlen>=1024
 		fclose(pFile);//关闭文件
 	}
 	CPacket pack(4, NULL, NULL);
-	CServerSocket::getInstance()->Send(pack);
+	pServer->Send(pack);
 	return 0;
 }
 
@@ -237,7 +238,7 @@ int MouseEvent() {//鼠标操作
 		}
 		//鼠标操作处理完后，发消息验证一下
 		CPacket pack(4, NULL, 0);
-		CServerSocket::getInstance()->Send(pack);
+		pServer->Send(pack);
 	}
 	else {
 		OutputDebugString(_T("获取鼠标参数失败！"));
@@ -274,7 +275,7 @@ int SendScreen() {//远程监控，屏幕截图发送给控制端，这里不需
 		PBYTE pdata = (PBYTE)GlobalLock(hMem);//返回该对象内存块的第一个字节的指针。
 		SIZE_T nSize = GlobalSize(hMem);//检索全局内存对象的当前大小(以字节为单位)
 		CPacket pack(6, (const char*)pdata, nSize);
-		CServerSocket::getInstance()->Send(pack);
+		pServer->Send(pack);
 	}
 	GlobalUnlock(hMem);//用于解锁由GlobalLock 函数锁定的内存块
 	pStream->Release(); //用于释放IStream 接口对象所占用的资源
@@ -295,13 +296,13 @@ int DelFile() {//删除文件
 		OutputDebugString(_T("文件删除成功"));
 		char data[] = "删除文件成功!";
 		CPacket pack(7, data, strlen(data));
-		CServerSocket::getInstance()->Send(pack);
+		pServer->Send(pack);
 	}
 	else {
 		OutputDebugString(_T("文件删除失败"));
 		char data[] = "删除文件失败!";
 		CPacket pack(7, data, strlen(data));
-		CServerSocket::getInstance()->Send(pack);
+		pServer->Send(pack);
 	}
 	return 0;
 }
@@ -363,19 +364,22 @@ int LockMachine() {//锁机
 		TRACE("锁机重复了");
 	}
 	CPacket pack(8, NULL, 0);
-	CServerSocket::getInstance()->Send(pack);
+	pServer->Send(pack);
 	return 0;
 }
 
 int UnLockMachine() {//解锁
 	//dlg.SendMessage(WM_KEYDOWN, 0X1B, 0X10001);
 	PostThreadMessage(threadid, WM_KEYDOWN, 0X1B, 0X10001);//将消息发送到指定线程的消息队列,发送按下"Esc"键解锁。
+	CPacket pack(9, NULL, 0);
+	pServer->Send(pack);
 	return 0;
 }
 
 int ConnectTect() {
 	CPacket pack(1981, NULL, 0);
-	CServerSocket::getInstance()->Send(pack);
+	pServer->Send(pack);
+	TRACE("1981连接测试成功\n");
 	return 0;
 }
 
@@ -442,7 +446,7 @@ int main()
 		{
 			// TODO: 在此处为应用程序的行为编写代码。
 			// 1.通过静态函数调用网络库初始化
-			CServerSocket* pServer = CServerSocket::getInstance();//类里面的静态函数不用声明对象可以直接调用。
+			pServer = CServerSocket::getInstance();//类里面的静态函数不用声明对象可以直接调用。
 			if (pServer != NULL) {
 				// 2.套接字的创建到监听
 				if (pServer->InitSocket() == false) {
@@ -460,28 +464,18 @@ int main()
 					MessageBox(NULL, _T("服务端连接失败，自动重试！"), _T("错误"), MB_OK | MB_ICONERROR);//NULL表示悬空弹窗窗口
 					count++;
 				}
-				ExcuteCommand(1981);//如果连接成功，发送测试
 				//连接成功处理操作
+				//接收命令
 				int ret = pServer->Recv();
-				if (ret == 1981) {
-					TRACE("1981连接测试成功\n");
+				
+				if (ret > 0) {
+					ret = ExcuteCommand(pServer->Getpacket().sCmd);//执行命令
+					if (ret != 0) {//命令执行成功会返回0
+						TRACE("执行命令失败:sCmd=%d  ret=%d\n", pServer->Getpacket().sCmd, ret);
+					}
+					//远程控制采用短连接
 					pServer->CloseClient();
 				}
-				//if (ret == 0) {
-				//	ret = ExcuteCommand(pServer->Getpacket().sCmd);//执行命令
-				//	if (ret != 0) {//命令执行成功会返回0
-				//		TRACE("执行命令失败:sCmd=%d  ret=%d\n", pServer->Getpacket().sCmd, ret);
-				//	}
-				//	//远程控制采用短连接
-				//	pServer->CloseClient();
-				//}
-				//else if (ret > 0) {
-				//	ret=ExcuteCommand(ret);
-				//	if (ret != 0) {//命令执行成功会返回0
-				//		TRACE("执行命令失败:sCmd=%d  ret=%d\n", pServer->Getpacket().sCmd, ret);
-				//	}
-				//	pServer->CloseClient();
-				//}
 				//TODO:
 
 			}

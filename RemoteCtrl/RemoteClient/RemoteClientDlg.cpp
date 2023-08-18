@@ -54,6 +54,8 @@ END_MESSAGE_MAP()
 
 CRemoteClientDlg::CRemoteClientDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_REMOTECLIENT_DIALOG, pParent)
+	, m_servaddress(0)
+	, m_port(_T(""))
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);//AfxGetApp 返回的指针用于访问应用程序信息  LoadIcon加载图标资源
 }
@@ -61,6 +63,9 @@ CRemoteClientDlg::CRemoteClientDlg(CWnd* pParent /*=nullptr*/)
 void CRemoteClientDlg::DoDataExchange(CDataExchange* pDX)//用于对话框数据的交换和验证，由 UpdateData() 调用
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_IPAddress(pDX, IDC_IPADDRESS, m_servaddress);
+	DDX_Text(pDX, IDC_EDIT_PORT, m_port);
+	DDX_Control(pDX, IDC_TREE_DIR, m_tree);
 }
 
 BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
@@ -68,6 +73,7 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BTN_CONNECT, &CRemoteClientDlg::OnBnClickedBtnConnect)
+	ON_BN_CLICKED(IDC_BTN_VIEWFILE, &CRemoteClientDlg::OnBnClickedBtnViewfile)
 END_MESSAGE_MAP()
 
 
@@ -103,7 +109,10 @@ BOOL CRemoteClientDlg::OnInitDialog()//创建对话框时，该函数就会被�
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
-
+	UpdateData();//将控件的值赋给成员变量
+	m_servaddress = 0x7F000001;//127.0.0.1
+	m_port = "6000";
+	UpdateData(FALSE);//将成员变量的值赋给控件
 
 
 
@@ -164,17 +173,48 @@ HCURSOR CRemoteClientDlg::OnQueryDragIcon()
 void CRemoteClientDlg::OnBnClickedBtnConnect()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	CClientSocket* hSocket = CClientSocket::getInstance();
-	if (hSocket != NULL) {
-		if (hSocket->InitSocket("127.0.0.1") == true) {
-			CPacket pack(1981, NULL, 0);
-			hSocket->Send(pack);
-			int ret = hSocket->Recv();
-			if (ret == 1981)
-				MessageBox("连接成功");
+
+	SendPacket(1981);
+	int ret = m_hSocket->Recv();
+	if (ret == 1981)
+		MessageBox("连接成功");
+}
+
+
+void CRemoteClientDlg::OnBnClickedBtnViewfile()//查看文件
+{
+	// TODO: 在此添加控件通知处理程序代码
+	SendPacket(1);
+	int ret = m_hSocket->Recv();
+	std::string drivers=m_hSocket->Getpacket().strData;
+	std::string dr;
+	TRACE("drivers.c_str():%s\n",drivers.c_str());
+	m_tree.DeleteAllItems();//删除树视图控件的所有项
+	for (size_t i = 0; i < drivers.size(); i++) {
+		if (drivers[i] == ',') {
+			
+			m_tree.InsertItem(dr.c_str(),TVI_ROOT,TVI_LAST);//在树视图控件中插入某个新项  TVI_ROOT表示树形视图的根节点，TVI_LAST表示树形视图中的最后一个节点
+			dr.clear();//清除字符串元素
+			continue;
 		}
-		//CPacket pack(8, "aaa", 3);
-		//hSocket->Send(pack);
-		hSocket->CloseClient();
+		dr += drivers[i];
+		dr += ":";
 	}
+	m_tree.InsertItem(dr.c_str());
+}
+
+int CRemoteClientDlg::SendPacket(WORD nCmd, BYTE* pData, size_t nSize)
+{
+	UpdateData();//检索控件中的数据，把控件的值赋给成员变量；FALSE将成员变量的值赋给控件
+	int port = atoi(m_port);//将字符串转换为整数
+
+	m_hSocket = CClientSocket::getInstance();
+	if (m_hSocket != NULL) {
+		if (m_hSocket->InitSocket(m_servaddress, port) == true) {
+			CPacket pack(nCmd, (const char*)pData, nSize);
+			m_hSocket->Send(pack);
+		}
+	}
+
+	return 0;
 }
