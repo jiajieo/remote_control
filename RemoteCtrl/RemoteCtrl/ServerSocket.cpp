@@ -16,6 +16,7 @@ void Dump(BYTE* pData, size_t nSize) {//查看输出打包好的数据
 		memset(buf, 0, sizeof(buf));
 		snprintf(buf, sizeof(buf), "%02X ", pData[i] & 0xFF);//%02X:X表示以16进制输出，02表示以两位输出
 		strOut += buf;
+		if ((i+1) % 16 == 0)strOut += "\n";
 	}
 	strOut += "\n";
 	OutputDebugStringA(strOut.c_str());//将字符串发送到调试器进行显示

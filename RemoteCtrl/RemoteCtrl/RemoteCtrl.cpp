@@ -45,7 +45,7 @@ int MakeDriverInfo() {//创建一个磁盘分区
 	}
 	//对数据进行打包
 	CPacket pack(1, result.c_str(), result.size());
-	//Dump((BYTE*)pack.Data(), pack.Size());
+	Dump((BYTE*)pack.Data(), pack.Size());
 	//拿到实例发送数据
 	pServer->Send(pack);
 	return 0;
@@ -54,23 +54,11 @@ int MakeDriverInfo() {//创建一个磁盘分区
 #include <io.h>
 #include <list>
 
-typedef struct fileinfo {//结构体默认是public,类默认是private.
-	fileinfo() {
-		IsInvalid = FALSE;//默认是有效的
-		IsDirectory = -1;
-		IsHasNext = TRUE;//默认是有后续的
-		memset(szFileName, 0, sizeof(szFileName));
-	}
-	BOOL IsInvalid;//判断该目录是否无效
-	BOOL IsDirectory;//判断是目录(文件夹)还是文件 0:文件 1:目录
-	BOOL IsHasNext;//文件是否还有后续 1:是 0:否
-	char szFileName[256];//文件名
-}FILEINFO, * PFILEINFO;
 
 int MakeDirectoryInfo() {//查看指定目录下的文件
 	std::string strPath;
 	//std::list<FILEINFO> lstFileInfo;//用该结构体定义一个链表，方便文件处理
-	if (CServerSocket::getInstance()->GetFilePath(strPath) == false) {
+	if (pServer->GetFilePath(strPath) == false) {
 		OutputDebugString(_T("错误，当前命令不是获取文件路径的命令！\n"));
 		return -1;
 	}
@@ -79,9 +67,7 @@ int MakeDirectoryInfo() {//查看指定目录下的文件
 		//目录不存在的情况
 		fileinfo tempfile;
 		tempfile.IsInvalid = TRUE;//目录无效
-		tempfile.IsDirectory = TRUE;
 		tempfile.IsHasNext = FALSE;
-		memcpy(tempfile.szFileName, strPath.c_str(), strPath.size());
 		//lstFileInfo.push_back(tempfile);
 		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
 		pServer->Send(pack);
@@ -92,22 +78,34 @@ int MakeDirectoryInfo() {//查看指定目录下的文件
 	_finddata_t filedata;
 	int hfind = 0;
 	if ((hfind = _findfirst("*", &filedata)) == -1) {//在当前目录下查找文件或子目录，提供与参数filespec中指定的文件名匹配的第一个实例。_findfirst接收一个通配符字符串作为参数，可以用于查找文件或文件夹。
+		fileinfo tempfile;
+		tempfile.IsHasNext = FALSE;
+		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
+		pServer->Send(pack);
 		OutputDebugString(_T("没有找到该文件！\n"));//输出调试模式一般在Debug模式下，不过如果不加控制条件，在release模式下也可以使用
 		return -3;
 	}
+	int count = 0;
 	do {//此时要将文件信息生成一个列表，想办法将这些文件正常提交到控制端，所以这里要再写一个结构体
 		fileinfo tempfile;//临时文件
-		tempfile.IsDirectory = (filedata.attrib & _A_SUBDIR) != 0;//filedata.attrib&_A_SUBDIR 判断他是否有子目录(文件夹)
-		memcpy(tempfile.szFileName, filedata.name, filedata.size);
+		tempfile.IsDirectory = (filedata.attrib & _A_SUBDIR) != 0;//filedata.attrib&_A_SUBDIR 判断他是否有子目录(文件夹)  TRUE表示文件夹(目录)，FALSE表示文件。
+		memcpy(tempfile.szFileName, filedata.name, strlen(filedata.name));
 		//lstFileInfo.push_back(tempfile);
+		TRACE("serv[%s] IsDirectory:%d\r\n", tempfile.szFileName, tempfile.IsDirectory);
 		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
+		//Dump((BYTE*)pack.Data(), pack.Size());
+		Sleep(1);
 		pServer->Send(pack);
-	} while (_findnext(hfind, &filedata));//查找下一个名称
+		count++;
+	} while (!_findnext(hfind, &filedata));//查找下一个名称  _findnext()如果成功返回0
 	//发送信息到控制端，但是如果该文件夹有大量的文件，一次性发完效果不是很好，所以要一个一个发，但是从用户体验方面来说，后者与用户有交互，可以随时反馈，所以这里选后者，结构体加一个是否还有后续的判断变量
+	TRACE("服务端%s路径的%d个文件全部发送！\n",strPath.c_str(), count);
 	fileinfo tempfile;
 	tempfile.IsHasNext = FALSE;
 	CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
+	
 	pServer->Send(pack);
+	
 	return 0;
 }
 
@@ -467,7 +465,7 @@ int main()
 				//连接成功处理操作
 				//接收命令
 				int ret = pServer->Recv();
-				
+
 				if (ret > 0) {
 					ret = ExcuteCommand(pServer->Getpacket().sCmd);//执行命令
 					if (ret != 0) {//命令执行成功会返回0

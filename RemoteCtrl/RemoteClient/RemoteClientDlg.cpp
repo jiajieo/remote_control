@@ -74,6 +74,7 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BTN_CONNECT, &CRemoteClientDlg::OnBnClickedBtnConnect)
 	ON_BN_CLICKED(IDC_BTN_VIEWFILE, &CRemoteClientDlg::OnBnClickedBtnViewfile)
+	ON_NOTIFY(NM_DBLCLK, IDC_TREE_DIR, &CRemoteClientDlg::OnNMDblclkTreeDir)
 END_MESSAGE_MAP()
 
 
@@ -170,7 +171,7 @@ HCURSOR CRemoteClientDlg::OnQueryDragIcon()
 
 
 
-void CRemoteClientDlg::OnBnClickedBtnConnect()
+void CRemoteClientDlg::OnBnClickedBtnConnect()//连接测试
 {
 	// TODO: 在此添加控件通知处理程序代码
 
@@ -185,25 +186,25 @@ void CRemoteClientDlg::OnBnClickedBtnViewfile()//查看文件
 {
 	// TODO: 在此添加控件通知处理程序代码
 	SendPacket(1);
-	int ret = m_hSocket->Recv();
-	std::string drivers=m_hSocket->Getpacket().strData;
+	std::string drivers = m_hSocket->Getpacket().strData;
 	std::string dr;
-	TRACE("drivers.c_str():%s\n",drivers.c_str());
+	TRACE("drivers.c_str():%s\n", drivers.c_str());
 	m_tree.DeleteAllItems();//删除树视图控件的所有项
 	for (size_t i = 0; i < drivers.size(); i++) {
 		if (drivers[i] == ',') {
-			
-			m_tree.InsertItem(dr.c_str(),TVI_ROOT,TVI_LAST);//在树视图控件中插入某个新项  TVI_ROOT表示树形视图的根节点，TVI_LAST表示树形视图中的最后一个节点
+			HTREEITEM hTemp = m_tree.InsertItem(dr.c_str(), TVI_ROOT, TVI_LAST);//在树视图控件中插入某个新项  TVI_ROOT表示树形视图的根节点，TVI_LAST表示树形视图中的最后一个节点
+			m_tree.InsertItem(NULL, hTemp, TVI_LAST);
 			dr.clear();//清除字符串元素
 			continue;
 		}
 		dr += drivers[i];
 		dr += ":";
 	}
-	m_tree.InsertItem(dr.c_str());
+	HTREEITEM hTemp = m_tree.InsertItem(dr.c_str(), TVI_ROOT, TVI_LAST);
+	m_tree.InsertItem(NULL, hTemp, TVI_LAST);
 }
 
-int CRemoteClientDlg::SendPacket(WORD nCmd, BYTE* pData, size_t nSize)
+int CRemoteClientDlg::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAutoClose)//发送命令 
 {
 	UpdateData();//检索控件中的数据，把控件的值赋给成员变量；FALSE将成员变量的值赋给控件
 	int port = atoi(m_port);//将字符串转换为整数
@@ -213,8 +214,75 @@ int CRemoteClientDlg::SendPacket(WORD nCmd, BYTE* pData, size_t nSize)
 		if (m_hSocket->InitSocket(m_servaddress, port) == true) {
 			CPacket pack(nCmd, (const char*)pData, nSize);
 			m_hSocket->Send(pack);
+			int ret = m_hSocket->Recv();
+			if (bAutoClose)//bAutoClose默认为TRUE
+				m_hSocket->CloseSocket();
 		}
 	}
 
 	return 0;
+}
+
+CString CRemoteClientDlg::GetPath(HTREEITEM hTree) {//获取树控件路径
+	CString strRet, strTmp;
+	do {
+		strTmp = m_tree.GetItemText(hTree);//获取当前树控件的文本
+		strRet = strTmp + "\\" + strRet;
+		hTree = m_tree.GetParentItem(hTree);//检索树项的父类句柄
+	} while (hTree != NULL);
+	return strRet;
+}
+
+void CRemoteClientDlg::DeleteTreeChild(HTREEITEM hTreeSelected)
+{
+	HTREEITEM hChi = NULL;
+	HTREEITEM hNex = NULL;
+	hChi = m_tree.GetChildItem(hTreeSelected);//检索树视图子集
+	do {
+		hNex = m_tree.GetNextItem(hChi, TVGN_NEXT);//检索下一个同级项
+		if (hChi != NULL)
+			m_tree.DeleteItem(hChi);//删除树视图控件某一项
+		hChi = hNex;//指向同级下一个
+	} while (hChi != NULL);
+}
+
+void CRemoteClientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树形控件双击事件
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CPoint ptMouse;
+	GetCursorPos(&ptMouse);//检索鼠标光标的屏幕坐标
+	m_tree.ScreenToClient(&ptMouse);//将指定屏幕坐标转换为客户端坐标
+	HTREEITEM hTreeSelected = m_tree.HitTest(ptMouse, 0);//HTREEITEM 是CTreeCtrl控件的项句柄，用于给树控件添加、查询、删除操作   HitTest()确定指定点相对于树视图工作区的相对位置
+	if (hTreeSelected == NULL)
+		return;
+	if (m_tree.GetChildItem(hTreeSelected) == NULL) {
+		//TODO: 如果是文件双击处理
+		return;
+	}
+	DeleteTreeChild(hTreeSelected);//删除树控键子项
+	CString strPath = GetPath(hTreeSelected);//获取树控件路径
+	SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false);
+	PFILEINFO tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
+	int count = 0;
+	while (tempfile->IsHasNext) {//判断文件是否有后续
+		TRACE("[%s] IsDirectory:%d\r\n", tempfile->szFileName, tempfile->IsDirectory);
+		if (tempfile->IsDirectory) {//目录
+			if (CString(tempfile->szFileName) == "." || CString(tempfile->szFileName) == "..") {
+				int ret = m_hSocket->Recv();
+				if (ret != 2)break;
+				tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
+				continue;
+			}
+		}
+		HTREEITEM hTemp = m_tree.InsertItem(tempfile->szFileName, hTreeSelected, TVI_LAST);//树视图控件插入新项，后俩是插入项父级句柄和新项句柄。 插入成功返回新项的句柄
+		if (tempfile->IsDirectory)//将目录和文件区分开
+			m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+		int ret = m_hSocket->Recv();
+		if (ret != 2)break;
+		tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();//可以从const char* 强制转换为结构体的指针FILEINFO*.
+		count++;
+	}
+	TRACE("%s路径下有%d个文件！\n", strPath, count);
+	m_hSocket->CloseSocket();
+	*pResult = 0;
 }

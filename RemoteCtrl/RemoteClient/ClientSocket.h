@@ -2,6 +2,19 @@
 #include <string>
 #include <vector>
 
+typedef struct fileinfo {//结构体默认是public,类默认是private.
+	fileinfo() {
+		IsInvalid = FALSE;//默认是有效的
+		IsDirectory = -1;
+		IsHasNext = TRUE;//默认是有后续的
+		memset(szFileName, 0, sizeof(szFileName));
+	}
+	BOOL IsInvalid;//判断该目录是否无效
+	BOOL IsDirectory;//判断是目录(文件夹)还是文件 0:文件 1:目录
+	BOOL IsHasNext;//文件是否还有后续 1:是 0:否
+	char szFileName[256];//文件名
+}FILEINFO, * PFILEINFO;
+
 #pragma pack(push)
 #pragma pack(1)
 class CPacket {
@@ -136,7 +149,7 @@ public:
 		return m_instance;
 	}
 
-	bool InitSocket(DWORD nIP,int port) {//套接字创建及监听
+	bool InitSocket(DWORD nIP, int port) {//套接字创建及监听
 		//1 创建套接字
 		if (m_sockCli != INVALID_SOCKET) {
 			closesocket(m_sockCli);
@@ -150,7 +163,7 @@ public:
 		//2 connect
 		SOCKADDR_IN addrCli;
 		memset(&addrCli, 0, sizeof(addrCli));//定义的结构体要清空
-		addrCli.sin_addr.S_un.S_addr =htonl(nIP);//用来保存客户端IP地址信息; inet_addr("")是将IP地址的字符串转换为 IP地址结构体的正确地址; htonl()从整型变量转换到IP地址结构体; ntohl()IP地址结构体转换成整形变量
+		addrCli.sin_addr.S_un.S_addr = htonl(nIP);//用来保存客户端IP地址信息; inet_addr("")是将IP地址的字符串转换为 IP地址结构体的正确地址; htonl()从整型变量转换到IP地址结构体; ntohl()IP地址结构体转换成整形变量
 		addrCli.sin_family = AF_INET;//传输的地址族,IP类型
 		addrCli.sin_port = htons(port);//用来保存端口号
 		if (addrCli.sin_addr.s_addr == INADDR_NONE) {//INADDR_NONE 指IP地址不合法或为空
@@ -158,14 +171,17 @@ public:
 			return false;
 		}
 		if (SOCKET_ERROR == connect(m_sockCli, (sockaddr*)&addrCli, sizeof(SOCKADDR))) {
-			TRACE("connect error=%d %s\n", WSAGetLastError(),GetError(WSAGetLastError()).c_str());
+			TRACE("connect error=%d %s\n", WSAGetLastError(), GetError(WSAGetLastError()).c_str());
 			AfxMessageBox("connect连接失败!");//在屏幕上显示一个消息框; 改成多字节字符
 			return false;
 		}
 		return true;
 	}
 	int Recv() {
-		if (m_sockCli == INVALID_SOCKET)return -1;//如果套接字发生错误是没办法接收发送的
+		if (m_sockCli == INVALID_SOCKET) {
+			TRACE("客户端套接字错误\n");
+			return -1;//如果套接字发生错误是没办法接收发送的
+		}
 		//char buffer[BUFFER_SIZE] = "";
 		//char* buffer = new char[BUFFER_SIZE];
 		char* buffer = m_buffer.data();//返回指定向量中第一个元素的指针，这是为了防止因泄露内存导致数据包丢失
@@ -174,7 +190,7 @@ public:
 		//数据接收处理
 		while (true) {
 			size_t len = recv(m_sockCli, buffer + index, BUFFER_SIZE - index, 0);
-			if (len == SOCKET_ERROR) {
+			if (len == SOCKET_ERROR || len == 0) {
 				TRACE("recv error=%d %s\n", WSAGetLastError(), GetError(WSAGetLastError()).c_str());
 				return -1;
 			}
@@ -220,8 +236,13 @@ public:
 		return false;
 	}
 
-	CPacket Getpacket() {//获取接受到的数据包
+	CPacket& Getpacket() {//获取接受到的数据包
 		return m_pack;
+	}
+
+	void CloseSocket() {
+		closesocket(m_sockCli);
+		m_sockCli = INVALID_SOCKET;
 	}
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造

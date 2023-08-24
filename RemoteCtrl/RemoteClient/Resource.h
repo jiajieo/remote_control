@@ -13,7 +13,6 @@
 #define IDC_LIST_FILE                   1003
 #define IDC_TREE_DIR                    1004
 #define IDC_BTN_VIEWFILE                1005
-#define IDC_BUTTON2                     1006
 
 // Next default values for new objects
 // 

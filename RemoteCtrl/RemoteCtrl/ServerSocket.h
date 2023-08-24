@@ -1,6 +1,19 @@
 #pragma once
 void Dump(BYTE* pData, size_t nSize);
 
+typedef struct fileinfo {//结构体默认是public,类默认是private.
+	fileinfo() {
+		IsInvalid = FALSE;//默认是有效的
+		IsDirectory = -1;
+		IsHasNext = TRUE;//默认是有后续的
+		memset(szFileName, 0, sizeof(szFileName));
+	}
+	BOOL IsInvalid;//判断该目录是否无效
+	BOOL IsDirectory;//判断是目录(文件夹)还是文件 0:文件 1:目录
+	BOOL IsHasNext;//文件是否还有后续 1:是 0:否
+	char szFileName[256];//文件名
+}FILEINFO, * PFILEINFO;
+
 #pragma pack(push)
 #pragma pack(1)
 class CPacket {
@@ -106,7 +119,7 @@ public://包数据是外部需要调用到的，所以这里用public
 	WORD sCmd;//命令
 	std::string strData;//包数据
 	WORD sSum;//和校验 将包数据进行加求和
-	std::string strOut;//整个包的数据，方便查看
+	std::string strOut;//整个包的数据，方便查看0001000000000001
 };
 #pragma pack(pop)
 
@@ -122,7 +135,7 @@ typedef struct mouseev{
 	POINT ptXY;//坐标
 }MOUSEEV,*PMOUSEEV;
 
-#define BUFFER_SIZE 4096//接收数据包的缓冲区大小
+#define BUFFER_SIZE 409600//接收数据包的缓冲区大小
 class CServerSocket
 {
 public:
@@ -161,7 +174,7 @@ public:
 	bool Accept() {
 		//4 accept
 		SOCKADDR_IN addrCli;
-		int len = sizeof(SOCKADDR);
+		int len = sizeof(addrCli);
 		m_sockcli = accept(m_sockSrv, (SOCKADDR*)&addrCli, &len);
 		if (m_sockcli == INVALID_SOCKET)
 			return false;

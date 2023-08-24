@@ -40,10 +40,24 @@ public:
 	afx_msg void OnBnClickedBtnViewfile();
 
 private:
-	int SendPacket(WORD nCmd,BYTE* pData=NULL, size_t nSize=0);//发送数据包
+	//1 查看磁盘分区
+	//2 查看指定目录下的文件
+	//3 打开文件
+	//4 下载文件
+	//5 鼠标操作
+	//6 远程监控，发送屏幕截图给控制端
+	//7 删除文件
+	//8 锁机
+	//9 解锁
+	//1981 测试连接
+	int SendPacket(WORD nCmd,BYTE* pData=NULL, size_t nSize=0, BOOL bAutoClose = TRUE);//发送数据包，确保网络初始化连接正常  bAutoClose=TRUE 套接字自动关闭，表示短连接；否则表示长连接。
+	CString GetPath(HTREEITEM hTree);
+	void DeleteTreeChild(HTREEITEM hTreeSelected);
 
 private:
 	CClientSocket* m_hSocket;
 public:
-	CTreeCtrl m_tree;
+	CTreeCtrl m_tree;//文件目录树形控件变量
+	CListCtrl m_List;
+	afx_msg void OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult);
 };
