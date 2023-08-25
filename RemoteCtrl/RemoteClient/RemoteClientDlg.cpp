@@ -66,6 +66,7 @@ void CRemoteClientDlg::DoDataExchange(CDataExchange* pDX)//用于对话框数据
 	DDX_IPAddress(pDX, IDC_IPADDRESS, m_servaddress);
 	DDX_Text(pDX, IDC_EDIT_PORT, m_port);
 	DDX_Control(pDX, IDC_TREE_DIR, m_tree);
+	DDX_Control(pDX, IDC_LIST_FILE, m_List);
 }
 
 BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
@@ -75,6 +76,8 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_CONNECT, &CRemoteClientDlg::OnBnClickedBtnConnect)
 	ON_BN_CLICKED(IDC_BTN_VIEWFILE, &CRemoteClientDlg::OnBnClickedBtnViewfile)
 	ON_NOTIFY(NM_DBLCLK, IDC_TREE_DIR, &CRemoteClientDlg::OnNMDblclkTreeDir)
+	ON_NOTIFY(NM_CLICK, IDC_TREE_DIR, &CRemoteClientDlg::OnNMClickTreeDir)
+	ON_NOTIFY(NM_RCLICK, IDC_LIST_FILE, &CRemoteClientDlg::OnNMRClickListFile)
 END_MESSAGE_MAP()
 
 
@@ -176,8 +179,7 @@ void CRemoteClientDlg::OnBnClickedBtnConnect()//连接测试
 	// TODO: 在此添加控件通知处理程序代码
 
 	SendPacket(1981);
-	int ret = m_hSocket->Recv();
-	if (ret == 1981)
+	if (m_hSocket->Getpacket().sCmd == 1981)
 		MessageBox("连接成功");
 }
 
@@ -246,9 +248,8 @@ void CRemoteClientDlg::DeleteTreeChild(HTREEITEM hTreeSelected)
 	} while (hChi != NULL);
 }
 
-void CRemoteClientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树形控件双击事件
+void CRemoteClientDlg::LoadFileInfo()
 {
-	// TODO: 在此添加控件通知处理程序代码
 	CPoint ptMouse;
 	GetCursorPos(&ptMouse);//检索鼠标光标的屏幕坐标
 	m_tree.ScreenToClient(&ptMouse);//将指定屏幕坐标转换为客户端坐标
@@ -260,6 +261,7 @@ void CRemoteClientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树�
 		return;
 	}
 	DeleteTreeChild(hTreeSelected);//删除树控键子项
+	m_List.DeleteAllItems();//删除列表控件所有项
 	CString strPath = GetPath(hTreeSelected);//获取树控件路径
 	SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false);
 	PFILEINFO tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
@@ -273,10 +275,14 @@ void CRemoteClientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树�
 				tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
 				continue;
 			}
+			else {//正常的目录
+				HTREEITEM hTemp = m_tree.InsertItem(tempfile->szFileName, hTreeSelected, TVI_LAST);//树视图控件插入新项，后俩是插入项父级句柄和新项句柄。 插入成功返回新项的句柄
+				m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+			}
 		}
-		HTREEITEM hTemp = m_tree.InsertItem(tempfile->szFileName, hTreeSelected, TVI_LAST);//树视图控件插入新项，后俩是插入项父级句柄和新项句柄。 插入成功返回新项的句柄
-		if (tempfile->IsDirectory)//将目录和文件区分开
-			m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+		else {//文件
+			m_List.InsertItem(0, tempfile->szFileName);//在列表视图控件中插入新项。第一个参数0：在列表第一行插入一行；-1：在列表末尾插入一行
+		}
 		int ret = m_hSocket->Recv();
 		if (ret != 2)break;
 		tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();//可以从const char* 强制转换为结构体的指针FILEINFO*.
@@ -284,5 +290,41 @@ void CRemoteClientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树�
 	}
 	TRACE("%s路径下有%d个文件！\n", strPath, count);
 	m_hSocket->CloseSocket();
+}
+
+void CRemoteClientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树形控件左键双击事件
+{
+	// TODO: 在此添加控件通知处理程序代码
+	LoadFileInfo();
+	*pResult = 0;
+}
+
+
+void CRemoteClientDlg::OnNMClickTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树形控件左键单击事件
+{
+	// TODO: 在此添加控件通知处理程序代码
+	//LoadFileInfo();
+	*pResult = 0;
+}
+
+
+void CRemoteClientDlg::OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult)//列表视图控件右键单击事件
+{
+	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
+	// TODO: 在此添加控件通知处理程序代码
+	CPoint ptMouse, ptList;
+	GetCursorPos(&ptMouse);
+	ptList = ptMouse;
+	m_List.ScreenToClient(&ptList);
+	int ListSelected=m_List.HitTest(ptList);//确定为于指定位置的列表视图项(如果有),返回列表的序号
+	if (ListSelected < 0)
+		return;
+	CMenu menu;
+	menu.LoadMenu(IDR_MENU_RCLICK);//加载菜单资源
+	CMenu* pPup=menu.GetSubMenu(0);//检索弹出的菜单对象;第一个菜单项的位置值从0开始。
+	if (pPup != NULL) {
+		pPup->TrackPopupMenu(TPM_LEFTALIGN| TPM_TOPALIGN| TPM_LEFTBUTTON,ptMouse.x,ptMouse.y,this);//在指定位置上显示浮动的弹出菜单，并跟踪菜单上项的选择情况
+
+	}
 	*pResult = 0;
 }

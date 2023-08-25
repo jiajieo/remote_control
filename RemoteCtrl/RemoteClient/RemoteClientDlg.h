@@ -53,11 +53,16 @@ private:
 	int SendPacket(WORD nCmd,BYTE* pData=NULL, size_t nSize=0, BOOL bAutoClose = TRUE);//发送数据包，确保网络初始化连接正常  bAutoClose=TRUE 套接字自动关闭，表示短连接；否则表示长连接。
 	CString GetPath(HTREEITEM hTree);
 	void DeleteTreeChild(HTREEITEM hTreeSelected);
+	void LoadFileInfo();//查看目录信息处理
 
 private:
 	CClientSocket* m_hSocket;
 public:
 	CTreeCtrl m_tree;//文件目录树形控件变量
+	// 显示文件
 	CListCtrl m_List;
-	afx_msg void OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult);//树形控件左键双击事件
+	afx_msg void OnNMClickTreeDir(NMHDR* pNMHDR, LRESULT* pResult);//树形控件左键单击事件
+	
+	afx_msg void OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult);//列表视图控件右键单击事件
 };
