@@ -78,6 +78,9 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_NOTIFY(NM_DBLCLK, IDC_TREE_DIR, &CRemoteClientDlg::OnNMDblclkTreeDir)
 	ON_NOTIFY(NM_CLICK, IDC_TREE_DIR, &CRemoteClientDlg::OnNMClickTreeDir)
 	ON_NOTIFY(NM_RCLICK, IDC_LIST_FILE, &CRemoteClientDlg::OnNMRClickListFile)
+	ON_COMMAND(ID_DOWNLOAD_FILE, &CRemoteClientDlg::OnDownloadFile)
+	ON_COMMAND(ID_DELETE_FILE, &CRemoteClientDlg::OnDeleteFile)
+	ON_COMMAND(ID_OPEN_FILE, &CRemoteClientDlg::OnOpenFile)
 END_MESSAGE_MAP()
 
 
@@ -215,7 +218,8 @@ int CRemoteClientDlg::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAut
 	if (m_hSocket != NULL) {
 		if (m_hSocket->InitSocket(m_servaddress, port) == true) {
 			CPacket pack(nCmd, (const char*)pData, nSize);
-			m_hSocket->Send(pack);
+			if (!m_hSocket->Send(pack))
+				return -1;
 			int ret = m_hSocket->Recv();
 			if (bAutoClose)//bAutoClose默认为TRUE
 				m_hSocket->CloseSocket();
@@ -247,7 +251,7 @@ void CRemoteClientDlg::DeleteTreeChild(HTREEITEM hTreeSelected)
 		hChi = hNex;//指向同级下一个
 	} while (hChi != NULL);
 }
-
+CString strPath;
 void CRemoteClientDlg::LoadFileInfo()
 {
 	CPoint ptMouse;
@@ -262,7 +266,7 @@ void CRemoteClientDlg::LoadFileInfo()
 	}
 	DeleteTreeChild(hTreeSelected);//删除树控键子项
 	m_List.DeleteAllItems();//删除列表控件所有项
-	CString strPath = GetPath(hTreeSelected);//获取树控件路径
+	strPath = GetPath(hTreeSelected);//获取树控件路径
 	SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false);
 	PFILEINFO tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
 	int count = 0;
@@ -307,24 +311,82 @@ void CRemoteClientDlg::OnNMClickTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树形
 	*pResult = 0;
 }
 
-
 void CRemoteClientDlg::OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult)//列表视图控件右键单击事件
 {
 	LPNMITEMACTIVATE pNMItemActivate = reinterpret_cast<LPNMITEMACTIVATE>(pNMHDR);
 	// TODO: 在此添加控件通知处理程序代码
 	CPoint ptMouse, ptList;
-	GetCursorPos(&ptMouse);
+	GetCursorPos(&ptMouse);//检索鼠标屏幕坐标
 	ptList = ptMouse;
 	m_List.ScreenToClient(&ptList);
-	int ListSelected=m_List.HitTest(ptList);//确定为于指定位置的列表视图项(如果有),返回列表的序号
+	int ListSelected = m_List.HitTest(ptList);//确定为于指定位置的列表视图项(如果有),返回列表的序号
 	if (ListSelected < 0)
 		return;
 	CMenu menu;
 	menu.LoadMenu(IDR_MENU_RCLICK);//加载菜单资源
-	CMenu* pPup=menu.GetSubMenu(0);//检索弹出的菜单对象;第一个菜单项的位置值从0开始。
+	CMenu* pPup = menu.GetSubMenu(0);//检索弹出的菜单对象;第一个菜单项的位置值从0开始。
 	if (pPup != NULL) {
-		pPup->TrackPopupMenu(TPM_LEFTALIGN| TPM_TOPALIGN| TPM_LEFTBUTTON,ptMouse.x,ptMouse.y,this);//在指定位置上显示浮动的弹出菜单，并跟踪菜单上项的选择情况
-
+		pPup->TrackPopupMenu(TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON, ptMouse.x, ptMouse.y, this);//在指定位置上显示浮动的弹出菜单，并跟踪菜单上项的选择情况
 	}
 	*pResult = 0;
+}
+
+void CRemoteClientDlg::OnDownloadFile()
+{
+	// TODO: 在此添加命令处理程序代码
+	int nListSelected = m_List.GetSelectionMark();//检索列表视图控件的选择标记,返回标记的记号，从0开始
+	CString ListText = m_List.GetItemText(nListSelected, 0);//定位到列表视图的行和列，从0开始
+
+	//先选择下载路径，在开始下载传输
+	CFileDialog dlg(FALSE, "*", ListText.GetString(), OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY, NULL, this);//构造标准Windows文件对话框，倒数第二项文件筛选器为空，因为可以下载任意文件，不需要筛选
+	if (IDOK == dlg.DoModal()) {//显示文件对话框
+		//要在发送传输之前创建文件
+		FILE* pFile = fopen(dlg.GetPathName(), "wb+");//因为使用二进制方式读取的，文本可以通过二进制方式写入，dlg.GetPathName()文件的完整路径
+		if (pFile == NULL) {
+			AfxMessageBox("文件创建失败");
+			return;
+		}
+
+		HTREEITEM hSelected = m_tree.GetSelectedItem();//检索树视图控件的当前选定项
+		CString FileDown = GetPath(hSelected) + ListText;
+		TRACE("FileDown=%s\n", (LPCSTR)FileDown);
+		int ret = SendPacket(4, (BYTE*)(LPCSTR)FileDown, FileDown.GetLength(), FALSE);
+		if (ret < 0) {
+			AfxMessageBox("下载失败");
+			return;
+		}
+		//文件大小
+		long long data = *(long long*)m_hSocket->Getpacket().strData.c_str();//将字符串转换成long long整型
+		if (data == 0) {
+			AfxMessageBox("文件长度为0，无法读取文件!");
+			return;
+		}
+
+		long long nCount = 0;
+		while (nCount < data) {
+			int ret=m_hSocket->Recv();
+			if (ret < 0) {
+				AfxMessageBox("传输失败");
+				break;
+			}
+			size_t len = fwrite(m_hSocket->Getpacket().strData.c_str(), 1, m_hSocket->Getpacket().strData.size(), pFile);
+			nCount +=len;
+		}
+		TRACE("接收到文件大小:%d\n", nCount);
+		AfxMessageBox("下载成功!");
+		fclose(pFile);
+	}
+	m_hSocket->CloseSocket();
+}
+
+
+void CRemoteClientDlg::OnDeleteFile()//删除文件
+{
+	// TODO: 在此添加命令处理程序代码
+}
+
+
+void CRemoteClientDlg::OnOpenFile()//打开文件
+{
+	// TODO: 在此添加命令处理程序代码
 }

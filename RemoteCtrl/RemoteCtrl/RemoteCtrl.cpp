@@ -125,28 +125,35 @@ int DownloadFile() {//下载文件
 	long long data = 0;
 	FILE* pFile = NULL;//文件默认为NULL，因为可能存在文件打开了但读不到数据，但是fopen_s如果失败了，那pFile还是NULL.
 	errno_t err = fopen_s(&pFile, strPath.c_str(), "rb");//可读打开一个二进制文件，文本可以通过二进制方式来读，但二进制文件不能文本方式读。
-	if (err != 0) {
+	if (err != 0) {//打开失败
 		CPacket pack(4, (char*)data, 8);//下载文件默认长度为0
 		pServer->Send(pack);
 		return -1;
 	}
 	if (pFile != NULL) {
 		fseek(pFile, 0, SEEK_END);//将文件指针移到指针位置，SEEK_END文件结尾
-		data = _ftelli64(pFile);//如果处理大型文件，就用_ftelli64，即64位有符号整数类型，可处理大于2GB的文件。
-		CPacket pack(4, (char*)data, 8);//将要下载的文件大小发送到控制端
+		data = _ftelli64(pFile);//获取指针当前位置；如果处理大型文件，就用_ftelli64，即64位有符号整数类型，可处理大于2GB的文件。
+		//char* len= new char[10];
+		//sprintf(len, "%lld", data);
+		CPacket pack(4, (char*)&data, 8);//将要下载的文件大小发送到控制端
 		pServer->Send(pack);
+		//delete[] len;
 		fseek(pFile, 0, SEEK_SET);//恢复文件指针
 		char buffer[1024] = { 0 };
+		int count = 0;
 		size_t rlen = 0;
 		do {
 			rlen = fread(buffer, 1, sizeof(buffer), pFile);//从流读取数据
 			CPacket pack(4, buffer, rlen);
+			Sleep(1);//等待接受的时间，否则接收不全
 			pServer->Send(pack);
+			count += rlen;
 			memset(buffer, 0, sizeof(buffer));
 		} while (rlen > 0);//只要读到了就可以继续读或rlen>=1024
+		TRACE("下载的文件大小:%d\n", count);
 		fclose(pFile);//关闭文件
 	}
-	CPacket pack(4, NULL, NULL);
+	CPacket pack(4, NULL, 0);
 	pServer->Send(pack);
 	return 0;
 }

@@ -65,4 +65,7 @@ public:
 	afx_msg void OnNMClickTreeDir(NMHDR* pNMHDR, LRESULT* pResult);//树形控件左键单击事件
 	
 	afx_msg void OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult);//列表视图控件右键单击事件
+	afx_msg void OnDownloadFile();
+	afx_msg void OnDeleteFile();
+	afx_msg void OnOpenFile();
 };
