@@ -99,20 +99,25 @@ int MakeDirectoryInfo() {//查看指定目录下的文件
 		count++;
 	} while (!_findnext(hfind, &filedata));//查找下一个名称  _findnext()如果成功返回0
 	//发送信息到控制端，但是如果该文件夹有大量的文件，一次性发完效果不是很好，所以要一个一个发，但是从用户体验方面来说，后者与用户有交互，可以随时反馈，所以这里选后者，结构体加一个是否还有后续的判断变量
-	TRACE("服务端%s路径的%d个文件全部发送！\n",strPath.c_str(), count);
+	TRACE("服务端%s路径的%d个文件全部发送！\n", strPath.c_str(), count);
 	fileinfo tempfile;
 	tempfile.IsHasNext = FALSE;
 	CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
-	
+
 	pServer->Send(pack);
-	
+
 	return 0;
 }
 
 int RunFile() {//这里是运行而不是打开文件是因为有些文件是.exe，有些文件是默认应用打开
 	std::string strPath;
-	CServerSocket::getInstance()->GetFilePath(strPath);
-	ShellExecuteA(NULL, (LPCSTR)open, strPath.c_str(), NULL, NULL, SW_SHOW);//对指定文件执行操作，相当于双击文件  ShellExecute是Unicode字符集的，ShellExecuteA是多字符集的，所以这里用后者
+	pServer->GetFilePath(strPath);
+	HINSTANCE ret = ShellExecuteA(NULL, "open", strPath.c_str(), NULL, NULL, SW_SHOW);//对指定文件执行操作，相当于双击文件  ShellExecute是Unicode字符集的，ShellExecuteA是多字符集的，所以这里用后者
+	if ((int)ret <= 32) {
+		TRACE("文件打开失败:%d\n", GetLastError());
+		return -1;
+	}
+	Sleep(1);
 	CPacket pack(3, NULL, NULL);
 	pServer->Send(pack);
 	return 0;
@@ -121,7 +126,7 @@ int RunFile() {//这里是运行而不是打开文件是因为有些文件是.ex
 
 int DownloadFile() {//下载文件
 	std::string strPath;
-	CServerSocket::getInstance()->GetFilePath(strPath);
+	pServer->GetFilePath(strPath);
 	long long data = 0;
 	FILE* pFile = NULL;//文件默认为NULL，因为可能存在文件打开了但读不到数据，但是fopen_s如果失败了，那pFile还是NULL.
 	errno_t err = fopen_s(&pFile, strPath.c_str(), "rb");//可读打开一个二进制文件，文本可以通过二进制方式来读，但二进制文件不能文本方式读。
@@ -160,7 +165,7 @@ int DownloadFile() {//下载文件
 
 int MouseEvent() {//鼠标操作
 	mouseev mouse;
-	if (CServerSocket::getInstance()->GetMouseEvent(mouse)) {
+	if (pServer->GetMouseEvent(mouse)) {
 		WORD nFlag;//2字节 0000 0000  0000 0000,设置一个标志位来处理鼠标按键信息
 		switch (mouse.nButton) {
 		case 0://左键
@@ -296,8 +301,11 @@ int SendScreen() {//远程监控，屏幕截图发送给控制端，这里不需
 
 int DelFile() {//删除文件
 	std::string strPath;
-	CServerSocket::getInstance()->GetFilePath(strPath);
-	if (std::remove(strPath.c_str()) == 0) {
+	pServer->GetFilePath(strPath);
+	TCHAR sPath[MAX_PATH] = _T("");
+	//mbstowcs(sPath, strPath.c_str(), strPath.size());//将多字节字符序列转换为对应的宽字符序列
+	MultiByteToWideChar(CP_ACP,0,strPath.c_str(),strPath.size(),sPath,sizeof(sPath)/sizeof(TCHAR));//将字符串映射到UTF-16(宽字符)字符串，字符串不一定来自多字节字符串。
+	if (DeleteFile(sPath)) {
 		OutputDebugString(_T("文件删除成功"));
 		char data[] = "删除文件成功!";
 		CPacket pack(7, data, strlen(data));
@@ -309,6 +317,18 @@ int DelFile() {//删除文件
 		CPacket pack(7, data, strlen(data));
 		pServer->Send(pack);
 	}
+	//if (std::remove(strPath.c_str()) == 0) {//删除文件
+	//	OutputDebugString(_T("文件删除成功"));
+	//	char data[] = "删除文件成功!";
+	//	CPacket pack(7, data, strlen(data));
+	//	pServer->Send(pack);
+	//}
+	//else {
+	//	OutputDebugString(_T("文件删除失败"));
+	//	char data[] = "删除文件失败!";
+	//	CPacket pack(7, data, strlen(data));
+	//	pServer->Send(pack);
+	//}
 	return 0;
 }
 

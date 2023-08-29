@@ -224,7 +224,7 @@ public:
 		return send(m_sockcli, pack.Data(), pack.Size(), 0) > 0;//将CPacket类转成const char*型(const char*)&pack
 	}
 
-	bool GetFilePath(std::string& strPath) {//获取控制端想要访问的路径
+	bool GetFilePath(std::string& strPath) {//控制端想要获取文件路径的权限
 		if ((m_pack.sCmd == 2) || (m_pack.sCmd == 3)|| (m_pack.sCmd == 4)||(m_pack.sCmd==7)) {//控制命令2和3都可以获取要访问的路径
 			strPath = m_pack.strData;
 			return true;

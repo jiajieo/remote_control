@@ -251,7 +251,7 @@ void CRemoteClientDlg::DeleteTreeChild(HTREEITEM hTreeSelected)
 		hChi = hNex;//指向同级下一个
 	} while (hChi != NULL);
 }
-CString strPath;
+
 void CRemoteClientDlg::LoadFileInfo()
 {
 	CPoint ptMouse;
@@ -266,7 +266,48 @@ void CRemoteClientDlg::LoadFileInfo()
 	}
 	DeleteTreeChild(hTreeSelected);//删除树控键子项
 	m_List.DeleteAllItems();//删除列表控件所有项
-	strPath = GetPath(hTreeSelected);//获取树控件路径
+	CString strPath = GetPath(hTreeSelected);//获取树控件路径
+	SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false);
+	PFILEINFO tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
+	int count = 0;
+	while (tempfile->IsHasNext) {//判断文件是否有后续
+		TRACE("[%s] IsDirectory:%d\r\n", tempfile->szFileName, tempfile->IsDirectory);
+		if (tempfile->IsDirectory) {//目录
+			if (CString(tempfile->szFileName) == "." || CString(tempfile->szFileName) == "..") {
+				int ret = m_hSocket->Recv();
+				if (ret != 2)break;
+				tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
+				continue;
+			}
+			else {//正常的目录
+				HTREEITEM hTemp = m_tree.InsertItem(tempfile->szFileName, hTreeSelected, TVI_LAST);//树视图控件插入新项，后俩是插入项父级句柄和新项句柄。 插入成功返回新项的句柄
+				m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+			}
+		}
+		else {//文件
+			m_List.InsertItem(0, tempfile->szFileName);//在列表视图控件中插入新项。第一个参数0：在列表第一行插入一行；-1：在列表末尾插入一行
+		}
+		int ret = m_hSocket->Recv();
+		if (ret != 2)break;
+		tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();//可以从const char* 强制转换为结构体的指针FILEINFO*.
+		count++;
+	}
+	TRACE("%s路径下有%d个文件！\n", strPath, count);
+	m_hSocket->CloseSocket();
+}
+
+void CRemoteClientDlg::LoadFileCurrent()
+{
+	HTREEITEM hTreeSelected =m_tree.GetSelectedItem();
+	if (hTreeSelected == NULL)
+		return;
+	if (m_tree.GetChildItem(hTreeSelected) == NULL) {
+		//TODO: 如果是文件双击处理
+		return;
+	}
+	DeleteTreeChild(hTreeSelected);//删除树控键子项
+	m_List.DeleteAllItems();//删除列表控件所有项
+	CString strPath = GetPath(hTreeSelected);//获取树控件路径
 	SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false);
 	PFILEINFO tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
 	int count = 0;
@@ -346,47 +387,61 @@ void CRemoteClientDlg::OnDownloadFile()
 			AfxMessageBox("文件创建失败");
 			return;
 		}
-
 		HTREEITEM hSelected = m_tree.GetSelectedItem();//检索树视图控件的当前选定项
 		CString FileDown = GetPath(hSelected) + ListText;
 		TRACE("FileDown=%s\n", (LPCSTR)FileDown);
-		int ret = SendPacket(4, (BYTE*)(LPCSTR)FileDown, FileDown.GetLength(), FALSE);
-		if (ret < 0) {
-			AfxMessageBox("下载失败");
-			return;
-		}
-		//文件大小
-		long long data = *(long long*)m_hSocket->Getpacket().strData.c_str();//将字符串转换成long long整型
-		if (data == 0) {
-			AfxMessageBox("文件长度为0，无法读取文件!");
-			return;
-		}
-
-		long long nCount = 0;
-		while (nCount < data) {
-			int ret=m_hSocket->Recv();
+		do {//该循环只会执行一次，方便出错直接退出循环
+			int ret = SendPacket(4, (BYTE*)(LPCSTR)FileDown, FileDown.GetLength(), FALSE);
 			if (ret < 0) {
-				AfxMessageBox("传输失败");
+				AfxMessageBox("下载失败");
 				break;
 			}
-			size_t len = fwrite(m_hSocket->Getpacket().strData.c_str(), 1, m_hSocket->Getpacket().strData.size(), pFile);
-			nCount +=len;
-		}
-		TRACE("接收到文件大小:%d\n", nCount);
+			//文件大小
+			long long data = *(long long*)m_hSocket->Getpacket().strData.c_str();//将字符串转换成long long整型
+			if (data == 0) {
+				AfxMessageBox("文件长度为0，无法读取文件!");
+				break;
+			}
+
+			long long nCount = 0;
+			while (nCount < data) {
+				int ret = m_hSocket->Recv();
+				if (ret < 0) {
+					AfxMessageBox("传输失败");
+					break;
+				}
+				size_t len = fwrite(m_hSocket->Getpacket().strData.c_str(), 1, m_hSocket->Getpacket().strData.size(), pFile);
+				nCount += len;
+			}
+			TRACE("接收到文件大小:%d\n", nCount);
+		} while (false);
 		AfxMessageBox("下载成功!");
 		fclose(pFile);
+		m_hSocket->CloseSocket();
 	}
-	m_hSocket->CloseSocket();
+
 }
 
 
 void CRemoteClientDlg::OnDeleteFile()//删除文件
 {
 	// TODO: 在此添加命令处理程序代码
+	int ListSelected = m_List.GetSelectionMark();
+	CString ListTect = m_List.GetItemText(ListSelected, 0);
+	HTREEITEM hSelected = m_tree.GetSelectedItem();
+	CString FileDel = GetPath(hSelected) + ListTect;
+	SendPacket(7, (BYTE*)(LPCSTR)FileDel, FileDel.GetLength());
+	AfxMessageBox(m_hSocket->Getpacket().strData.c_str());
+	LoadFileCurrent();//刷新一下目录下的文件
 }
 
 
 void CRemoteClientDlg::OnOpenFile()//打开文件
 {
 	// TODO: 在此添加命令处理程序代码
+	int ListSelected = m_List.GetSelectionMark();
+	CString ListTect = m_List.GetItemText(ListSelected, 0);
+	HTREEITEM hSelected = m_tree.GetSelectedItem();
+	CString FileOpen = GetPath(hSelected) + ListTect;
+	SendPacket(3, (BYTE*)(LPCSTR)FileOpen, FileOpen.GetLength());
 }

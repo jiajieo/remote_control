@@ -54,6 +54,7 @@ private:
 	CString GetPath(HTREEITEM hTree);
 	void DeleteTreeChild(HTREEITEM hTreeSelected);
 	void LoadFileInfo();//查看目录信息处理
+	void LoadFileCurrent();//刷新目录下的文件
 
 private:
 	CClientSocket* m_hSocket;
