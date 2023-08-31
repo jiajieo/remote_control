@@ -81,6 +81,7 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_COMMAND(ID_DOWNLOAD_FILE, &CRemoteClientDlg::OnDownloadFile)
 	ON_COMMAND(ID_DELETE_FILE, &CRemoteClientDlg::OnDeleteFile)
 	ON_COMMAND(ID_OPEN_FILE, &CRemoteClientDlg::OnOpenFile)
+	ON_MESSAGE(WM_SEND_PACKET, &CRemoteClientDlg::OnSendPacket)
 END_MESSAGE_MAP()
 
 
@@ -121,7 +122,11 @@ BOOL CRemoteClientDlg::OnInitDialog()//创建对话框时，该函数就会被�
 	m_port = "6000";
 	UpdateData(FALSE);//将成员变量的值赋给控件
 
+	m_status.Create(IDD_DLG_STATUS, this);
+	//m_status.ShowWindow(SW_HIDE);//隐藏此窗口
 
+	//屏幕监控
+	m_isFull = false;//数据缓存初始化
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -180,7 +185,6 @@ HCURSOR CRemoteClientDlg::OnQueryDragIcon()
 void CRemoteClientDlg::OnBnClickedBtnConnect()//连接测试
 {
 	// TODO: 在此添加控件通知处理程序代码
-
 	SendPacket(1981);
 	if (m_hSocket->Getpacket().sCmd == 1981)
 		MessageBox("连接成功");
@@ -213,20 +217,19 @@ int CRemoteClientDlg::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAut
 {
 	UpdateData();//检索控件中的数据，把控件的值赋给成员变量；FALSE将成员变量的值赋给控件
 	int port = atoi(m_port);//将字符串转换为整数
-
+	int ret;
 	m_hSocket = CClientSocket::getInstance();
 	if (m_hSocket != NULL) {
 		if (m_hSocket->InitSocket(m_servaddress, port) == true) {
 			CPacket pack(nCmd, (const char*)pData, nSize);
 			if (!m_hSocket->Send(pack))
 				return -1;
-			int ret = m_hSocket->Recv();
+			ret = m_hSocket->Recv();
 			if (bAutoClose)//bAutoClose默认为TRUE
 				m_hSocket->CloseSocket();
 		}
 	}
-
-	return 0;
+	return ret;
 }
 
 CString CRemoteClientDlg::GetPath(HTREEITEM hTree) {//获取树控件路径
@@ -298,7 +301,7 @@ void CRemoteClientDlg::LoadFileInfo()
 
 void CRemoteClientDlg::LoadFileCurrent()
 {
-	HTREEITEM hTreeSelected =m_tree.GetSelectedItem();
+	HTREEITEM hTreeSelected = m_tree.GetSelectedItem();
 	if (hTreeSelected == NULL)
 		return;
 	if (m_tree.GetChildItem(hTreeSelected) == NULL) {
@@ -335,6 +338,96 @@ void CRemoteClientDlg::LoadFileCurrent()
 	}
 	TRACE("%s路径下有%d个文件！\n", strPath, count);
 	m_hSocket->CloseSocket();
+}
+
+unsigned __stdcall CRemoteClientDlg::threadEntryForDownFile(void* arg)
+{
+	CRemoteClientDlg* thiz = (CRemoteClientDlg*)arg;
+	thiz->threadDownFile();
+	_endthreadex(0);//终止线程
+	return 0;
+}
+
+void CRemoteClientDlg::threadDownFile()//不能只将一部分放在线程里，外部还有循环
+{
+	int nListSelected = m_List.GetSelectionMark();//检索列表视图控件的选择标记,返回标记的记号，从0开始
+	CString ListText = m_List.GetItemText(nListSelected, 0);//定位到列表视图的行和列，从0开始
+
+	//先选择下载路径，在开始下载传输
+	CFileDialog dlg(FALSE, "*", ListText.GetString(), OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY, NULL, this);//构造标准Windows文件对话框，倒数第二项文件筛选器为空，因为可以下载任意文件，不需要筛选
+	if (IDOK == dlg.DoModal()) {//显示文件对话框
+		//要在发送传输之前创建文件
+		m_status.m_info.SetWindowText("DownLoading...");
+		//m_status.SetActiveWindow();//激活窗口
+		m_status.CenterWindow(this);//使窗口相对于其父级居中
+		m_status.ShowWindow(SW_SHOW);
+		FILE* pFile = fopen(dlg.GetPathName(), "wb+");//因为使用二进制方式读取的，文本可以通过二进制方式写入，dlg.GetPathName()文件的完整路径
+		if (pFile == NULL) {
+			AfxMessageBox("文件创建失败");
+			m_status.ShowWindow(SW_HIDE);//下载失败要将对话框销毁掉
+			EndWaitCursor();//从沙漏光标返回上一个光标
+			return;
+		}
+		HTREEITEM hSelected = m_tree.GetSelectedItem();//检索树视图控件的当前选定项
+		CString FileDown = GetPath(hSelected) + ListText;
+		TRACE("FileDown=%s\n", (LPCSTR)FileDown);
+		do {//该循环只会执行一次，方便出错直接退出循环
+			//int ret = SendPacket(4, (BYTE*)(LPCSTR)FileDown, FileDown.GetLength(), FALSE);//SendPacket这个函数是外部的线程不能随便用
+			//int ret = OnSendPacket(4 << 1 | 0, (LPARAM)(LPCSTR)FileDown);
+			int ret = SendMessage(WM_SEND_PACKET, 4 << 1 | 0, (LPARAM)(LPCSTR)FileDown);//将制定消息发送到一个或多个窗口
+			if (ret < 0) {
+				AfxMessageBox("下载失败");
+				break;
+			}
+			//文件大小
+			long long data = *(long long*)m_hSocket->Getpacket().strData.c_str();//将字符串转换成long long整型
+			if (data == 0) {
+				AfxMessageBox("文件长度为0，无法读取文件!");
+				break;
+			}
+
+			long long nCount = 0;
+			while (nCount < data) {
+				int ret = m_hSocket->Recv();
+				if (ret < 0) {
+					AfxMessageBox("传输失败");
+					break;
+				}
+				size_t len = fwrite(m_hSocket->Getpacket().strData.c_str(), 1, m_hSocket->Getpacket().strData.size(), pFile);
+				nCount += len;
+			}
+			TRACE("接收到文件大小:%d\n", nCount);
+			if (nCount == data)
+				AfxMessageBox("下载成功!", MB_SETFOREGROUND);
+		} while (false);
+		fclose(pFile);
+		m_hSocket->CloseSocket();
+	}
+	m_status.ShowWindow(SW_HIDE);
+	EndWaitCursor();//从沙漏光标返回上一个光标
+}
+
+void CRemoteClientDlg::threadEntryWatchData(void* arg)
+{
+	CRemoteClientDlg* thiz = (CRemoteClientDlg*)arg;
+	thiz->threadWatchData();
+	_endthreadex(0);//终止线程
+}
+
+void CRemoteClientDlg::threadWatchData()
+{
+	for (;;) {//等价于while(true)
+		int ret=SendPacket(6, NULL, 0);
+		if (ret == 6) {
+			if (m_isFull == false) {
+				BYTE* pData = (BYTE*)m_hSocket->Getpacket().strData.c_str();
+				//存入CImage
+
+				m_isFull = true;
+			}
+		}
+	}
+
 }
 
 void CRemoteClientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树形控件左键双击事件
@@ -374,51 +467,13 @@ void CRemoteClientDlg::OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult)//列�
 
 void CRemoteClientDlg::OnDownloadFile()
 {
-	// TODO: 在此添加命令处理程序代码
-	int nListSelected = m_List.GetSelectionMark();//检索列表视图控件的选择标记,返回标记的记号，从0开始
-	CString ListText = m_List.GetItemText(nListSelected, 0);//定位到列表视图的行和列，从0开始
+	//添加线程函数处理大文件的下载
+	unsigned thraddr;
+	BeginWaitCursor();//将光标显示为沙漏光标，向用户显示正处于繁忙状态，通常表示等待，计算机正在处理数据
+	_beginthreadex(NULL, 0, CRemoteClientDlg::threadEntryForDownFile, this, 0, &thraddr);//这里threadDownFile 线程函数要定义为静态的，否则访问不了
 
-	//先选择下载路径，在开始下载传输
-	CFileDialog dlg(FALSE, "*", ListText.GetString(), OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY, NULL, this);//构造标准Windows文件对话框，倒数第二项文件筛选器为空，因为可以下载任意文件，不需要筛选
-	if (IDOK == dlg.DoModal()) {//显示文件对话框
-		//要在发送传输之前创建文件
-		FILE* pFile = fopen(dlg.GetPathName(), "wb+");//因为使用二进制方式读取的，文本可以通过二进制方式写入，dlg.GetPathName()文件的完整路径
-		if (pFile == NULL) {
-			AfxMessageBox("文件创建失败");
-			return;
-		}
-		HTREEITEM hSelected = m_tree.GetSelectedItem();//检索树视图控件的当前选定项
-		CString FileDown = GetPath(hSelected) + ListText;
-		TRACE("FileDown=%s\n", (LPCSTR)FileDown);
-		do {//该循环只会执行一次，方便出错直接退出循环
-			int ret = SendPacket(4, (BYTE*)(LPCSTR)FileDown, FileDown.GetLength(), FALSE);
-			if (ret < 0) {
-				AfxMessageBox("下载失败");
-				break;
-			}
-			//文件大小
-			long long data = *(long long*)m_hSocket->Getpacket().strData.c_str();//将字符串转换成long long整型
-			if (data == 0) {
-				AfxMessageBox("文件长度为0，无法读取文件!");
-				break;
-			}
-
-			long long nCount = 0;
-			while (nCount < data) {
-				int ret = m_hSocket->Recv();
-				if (ret < 0) {
-					AfxMessageBox("传输失败");
-					break;
-				}
-				size_t len = fwrite(m_hSocket->Getpacket().strData.c_str(), 1, m_hSocket->Getpacket().strData.size(), pFile);
-				nCount += len;
-			}
-			TRACE("接收到文件大小:%d\n", nCount);
-		} while (false);
-		AfxMessageBox("下载成功!");
-		fclose(pFile);
-		m_hSocket->CloseSocket();
-	}
+	Sleep(50);//等待50ms开启一个线程
+	//TODO: 大文件传输需要额外处理
 
 }
 
@@ -444,4 +499,11 @@ void CRemoteClientDlg::OnOpenFile()//打开文件
 	HTREEITEM hSelected = m_tree.GetSelectedItem();
 	CString FileOpen = GetPath(hSelected) + ListTect;
 	SendPacket(3, (BYTE*)(LPCSTR)FileOpen, FileOpen.GetLength());
+}
+
+LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)// WPARAM 和 LPARAM 各占4字节
+{
+	CString strPath = (LPCSTR)lParam;//LPCSTR 用于传递指向以NULL字符结尾的常量字符串的指针参数；LPCTSTR 和LPCSTR 是在Unicode字符集(宽字符集)环境下传递宽字符字符串参数。
+	int ret = SendPacket(wParam >> 1, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), wParam & 1);
+	return ret;
 }

@@ -4,6 +4,9 @@
 
 #pragma once
 #include "ClientSocket.h"
+#include "StatusDlg.h"
+
+#define WM_SEND_PACKET (WM_USER+1)//发送数据包的消息ID
 
 // CRemoteClientDlg 对话框
 class CRemoteClientDlg : public CDialogEx
@@ -55,9 +58,18 @@ private:
 	void DeleteTreeChild(HTREEITEM hTreeSelected);
 	void LoadFileInfo();//查看目录信息处理
 	void LoadFileCurrent();//刷新目录下的文件
+	static unsigned __stdcall threadEntryForDownFile(void* arg);//文件下载线程，在类中添加线程要将线程函数定义为静态的
+	void threadDownFile();//文件下载线程
+	//屏幕监控
+	static void threadEntryWatchData(void* arg);//静态函数不能使用this指针
+	void threadWatchData();
 
 private:
-	CClientSocket* m_hSocket;
+	CClientSocket* m_hSocket;//防止多个线程同时用到这个数据，所以将它定义为局部变量
+	CStatusDlg m_status;
+	CImage m_image;//缓存
+	bool m_isFull;//是否有缓存,false无缓存,true有缓存 初始化为无缓存
+
 public:
 	CTreeCtrl m_tree;//文件目录树形控件变量
 	// 显示文件
@@ -69,4 +81,5 @@ public:
 	afx_msg void OnDownloadFile();
 	afx_msg void OnDeleteFile();
 	afx_msg void OnOpenFile();
+	afx_msg LRESULT OnSendPacket(WPARAM wParam,LPARAM lParam);//定义消息处理函数
 };

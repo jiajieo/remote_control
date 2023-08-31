@@ -377,7 +377,7 @@ unsigned __stdcall threadLockDlg(void* arg) {//锁机不能放在主线程里，
 	}
 	ShowCursor(TRUE);//显示鼠标
 	ShowWindow(FindWindow(_T("Shell_TrayWnd"), NULL), SW_SHOW);//显示任务栏
-	_endthreadex(0);//终止由_beginthread 创建的线程
+	_endthreadex(0);//终止由_beginthreadex 创建的线程
 	return 0;
 }
 
