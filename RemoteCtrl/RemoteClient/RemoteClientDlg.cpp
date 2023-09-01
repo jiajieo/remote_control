@@ -8,6 +8,7 @@
 #include "RemoteClient.h"
 #include "RemoteClientDlg.h"
 #include "afxdialogex.h"
+#include "WatchDialog.h"
 
 
 #ifdef _DEBUG
@@ -82,6 +83,8 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_COMMAND(ID_DELETE_FILE, &CRemoteClientDlg::OnDeleteFile)
 	ON_COMMAND(ID_OPEN_FILE, &CRemoteClientDlg::OnOpenFile)
 	ON_MESSAGE(WM_SEND_PACKET, &CRemoteClientDlg::OnSendPacket)
+	ON_BN_CLICKED(IDC_BTN_START_WATCH, &CRemoteClientDlg::OnBnClickedBtnStartWatch)
+	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -407,24 +410,45 @@ void CRemoteClientDlg::threadDownFile()//不能只将一部分放在线程里，
 	EndWaitCursor();//从沙漏光标返回上一个光标
 }
 
-void CRemoteClientDlg::threadEntryWatchData(void* arg)
+unsigned __stdcall CRemoteClientDlg::threadEntryWatchData(void* arg)
 {
 	CRemoteClientDlg* thiz = (CRemoteClientDlg*)arg;
 	thiz->threadWatchData();
 	_endthreadex(0);//终止线程
+	return 0;
 }
 
 void CRemoteClientDlg::threadWatchData()
 {
 	for (;;) {//等价于while(true)
-		int ret=SendPacket(6, NULL, 0);
-		if (ret == 6) {
+		//int ret = SendPacket(6, NULL, 0);
+		BYTE* Data = NULL;
+		int ret = SendMessage(WM_SEND_PACKET, 6 << 1 | 1, (LPARAM)Data);
+		if (ret == 6) {//更新数据到缓存器
 			if (m_isFull == false) {
 				BYTE* pData = (BYTE*)m_hSocket->Getpacket().strData.c_str();
 				//存入CImage
-
-				m_isFull = true;
+				IStream* pStream = NULL;//创建一个流
+				HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, 0);//从堆中分配指定的字节数，GMEM_MOVEABLE分配可移动内存
+				if (hMem == NULL) {
+					TRACE("分配移动内存失败errno=%d\n", GetLastError());
+					Sleep(1);//要等待一下，防止出现死循环
+					continue;
+				}
+				HRESULT ret = CreateStreamOnHGlobal(hMem, TRUE, &pStream);//创建一个流对象，用HGLOBAL句柄来存储流内容
+				if (ret == S_OK) {//函数执行成功
+					ULONG length = 0;
+					pStream->Write(pData, m_hSocket->Getpacket().strData.size(), &length);//数据从缓存区中写入指定的流。
+					LARGE_INTEGER bg = { 0 };
+					pStream->Seek(bg, STREAM_SEEK_SET, NULL);//查找指针更改为新位置
+					m_image.Load(pStream);//加载图像
+					m_isFull = true;
+				}
 			}
+		}
+		else {
+			Sleep(1);
+			continue;
 		}
 	}
 
@@ -506,4 +530,24 @@ LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)// WPARAM �
 	CString strPath = (LPCSTR)lParam;//LPCSTR 用于传递指向以NULL字符结尾的常量字符串的指针参数；LPCTSTR 和LPCSTR 是在Unicode字符集(宽字符集)环境下传递宽字符字符串参数。
 	int ret = SendPacket(wParam >> 1, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), wParam & 1);
 	return ret;
+}
+
+
+void CRemoteClientDlg::OnBnClickedBtnStartWatch()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	unsigned thraddr;
+	_beginthreadex(NULL, 0, CRemoteClientDlg::threadEntryWatchData, this, 0, &thraddr);
+	//此时因为监控对话框定义的是模态的，所以不用担心狂点远程监控按钮的问题
+	//GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);//EnableWindow 启用或禁用鼠标和键盘输入，TRUE:启用 FALSE:禁用 防止狂点
+	CWatchDialog dlg;
+	dlg.DoModal();//将监控对话框设为模态对话框
+}
+
+
+void CRemoteClientDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+
+	CDialogEx::OnTimer(nIDEvent);
 }
