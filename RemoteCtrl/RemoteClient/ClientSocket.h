@@ -138,7 +138,7 @@ typedef struct mouseev {
 
 std::string GetError(int a);//a:WSAGetLastError() 函数的参数一定不能写宏定义的。
 
-#define BUFFER_SIZE 4096//接收数据包的缓冲区大小
+#define BUFFER_SIZE 819200//接收数据包的缓冲区大小
 class CClientSocket
 {
 public:
@@ -190,6 +190,7 @@ public:
 		//数据接收处理
 		while (true) {
 			size_t len = recv(m_sockCli, buffer + index, BUFFER_SIZE - index, 0);
+			TRACE("recv datalen=%d\n", len);
 			if (len == SOCKET_ERROR || len == 0) {
 				TRACE("recv error=%d %s\n", WSAGetLastError(), GetError(WSAGetLastError()).c_str());
 				return -1;

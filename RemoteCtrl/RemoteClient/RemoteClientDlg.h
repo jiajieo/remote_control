@@ -5,6 +5,7 @@
 #pragma once
 #include "ClientSocket.h"
 #include "StatusDlg.h"
+#include "WatchDialog.h"
 
 #define WM_SEND_PACKET (WM_USER+1)//发送数据包的消息ID
 
@@ -65,11 +66,14 @@ private:
 	void threadWatchData();
 
 public://获取成员变量
-	bool isFull() const{//该成员函数是一个常量成员函数，不会修改类里的成员变量
+	bool GetIsFull() const{//该成员函数是一个常量成员函数，不会修改类里的成员变量
 		return m_isFull;
 	}
-	CImage& image(){//这里是将m_image拿到外部用一下，所以用引用，可能会修改m_image变量的值，所以不能加const
+	CImage& GetImage(){//这里是将m_image拿到外部用一下，所以用引用，可能会修改m_image变量的值，所以不能加const
 		return m_image;
+	}
+	void SetNoImage(bool isfull = false) {//设为无缓存
+		m_isFull = isfull;
 	}
 
 private:
@@ -77,6 +81,7 @@ private:
 	CStatusDlg m_status;
 	CImage m_image;//缓存，提供了增强的位图支持，能够加载和保存JPEG、GIF、BMP的图像。
 	bool m_isFull;//是否有缓存,false无缓存,true有缓存 初始化为无缓存
+	
 
 public:
 	CTreeCtrl m_tree;//文件目录树形控件变量

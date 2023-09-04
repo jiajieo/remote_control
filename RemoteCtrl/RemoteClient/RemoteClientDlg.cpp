@@ -8,7 +8,7 @@
 #include "RemoteClient.h"
 #include "RemoteClientDlg.h"
 #include "afxdialogex.h"
-#include "WatchDialog.h"
+
 
 
 #ifdef _DEBUG
@@ -420,12 +420,21 @@ unsigned __stdcall CRemoteClientDlg::threadEntryWatchData(void* arg)
 
 void CRemoteClientDlg::threadWatchData()
 {
+	Sleep(50);
+	//ULONGLONG ret = GetTickCount64();//检索自启动以来经过的毫秒数
 	for (;;) {//等价于while(true)
+		//if (GetTickCount64() - ret < 50) { //这里是每过50ms在接收数据
+		//	Sleep(50 + ret - GetTickCount64());
+		//	//Sleep(GetTickCount64() - ret);
+		//	ret = GetTickCount64();
+		//}
+		
 		//int ret = SendPacket(6, NULL, 0);
-		BYTE* Data = NULL;
-		int ret = SendMessage(WM_SEND_PACKET, 6 << 1 | 1, (LPARAM)Data);
-		if (ret == 6) {//更新数据到缓存器
-			if (m_isFull == false) {
+		if (m_isFull == false) {//将判断是否有缓存放到接受数据之前，防止有缓存未处理接收下一数据，导致等待时间过长出现卡顿。
+			BYTE* Data = NULL;
+			int ret = SendMessage(WM_SEND_PACKET, 6 << 1 | 1, (LPARAM)Data);
+			if (ret == 6) {//更新数据到缓存器
+				
 				BYTE* pData = (BYTE*)m_hSocket->Getpacket().strData.c_str();
 				//存入CImage
 				IStream* pStream = NULL;//创建一个流
@@ -445,13 +454,12 @@ void CRemoteClientDlg::threadWatchData()
 					m_isFull = true;
 				}
 			}
-		}
-		else {
+			else
+				Sleep(1);
+		}//如果还有缓存，就啥也不干，等待无缓存再接受数据，就不需要等待50ms了
+		else
 			Sleep(1);
-			continue;
-		}
 	}
-
 }
 
 void CRemoteClientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树形控件左键双击事件
@@ -537,10 +545,11 @@ void CRemoteClientDlg::OnBnClickedBtnStartWatch()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	unsigned thraddr;
+	CWatchDialog dlg;
 	_beginthreadex(NULL, 0, CRemoteClientDlg::threadEntryWatchData, this, 0, &thraddr);
 	//此时因为监控对话框定义的是模态的，所以不用担心狂点远程监控按钮的问题
 	//GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);//EnableWindow 启用或禁用鼠标和键盘输入，TRUE:启用 FALSE:禁用 防止狂点
-	CWatchDialog dlg;
+
 	dlg.DoModal();//将监控对话框设为模态对话框
 }
 

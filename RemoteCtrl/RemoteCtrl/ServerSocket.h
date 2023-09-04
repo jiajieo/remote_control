@@ -221,6 +221,7 @@ public:
 	}
 	bool Send(CPacket& pack) {//函数重载 加一个可以发送数据包的Send函数
 		if (m_sockcli == INVALID_SOCKET)return false;
+		TRACE("serv datalen=%d\n", pack.Size());
 		return send(m_sockcli, pack.Data(), pack.Size(), 0) > 0;//将CPacket类转成const char*型(const char*)&pack
 	}
 
