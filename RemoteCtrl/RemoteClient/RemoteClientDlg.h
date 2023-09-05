@@ -43,7 +43,7 @@ public:
 	CString m_port;
 	afx_msg void OnBnClickedBtnViewfile();
 
-private:
+
 	//1 查看磁盘分区
 	//2 查看指定目录下的文件
 	//3 打开文件
@@ -55,6 +55,7 @@ private:
 	//9 解锁
 	//1981 测试连接
 	int SendPacket(WORD nCmd, BYTE* pData = NULL, size_t nSize = 0, BOOL bAutoClose = TRUE);//发送数据包，确保网络初始化连接正常  bAutoClose=TRUE 套接字自动关闭，表示短连接；否则表示长连接。
+private:
 	CString GetPath(HTREEITEM hTree);
 	void DeleteTreeChild(HTREEITEM hTreeSelected);
 	void LoadFileInfo();//查看目录信息处理
