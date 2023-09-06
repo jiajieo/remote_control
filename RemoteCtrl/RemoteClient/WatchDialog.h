@@ -26,7 +26,7 @@ public:
 	CStatic m_picture;//显示区域
 
 private:
-	CPoint ConvertRemoteScreenPoint(CPoint& point);//将客户端坐标转换为远程端屏幕坐标
+	CPoint ConvertRemoteScreenPoint(CPoint& point,bool IsClientCoor=false);//将客户端坐标转换为远程端屏幕坐标
 
 	afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
@@ -39,4 +39,5 @@ private:
 	afx_msg void OnMButtonUp(UINT nFlags, CPoint point);
 public:
 	afx_msg void OnMButtonDblClk(UINT nFlags, CPoint point);
+	afx_msg void OnStnClickedWatch();
 };
