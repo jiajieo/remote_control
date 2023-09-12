@@ -27,6 +27,7 @@ public:
 
 	int m_width;//被控端屏幕的宽
 	int m_height;//被控端屏幕的高
+	bool islock;//是否锁机
 
 private:
 	CPoint ConvertRemoteScreenPoint(CPoint& point,bool IsClientCoor=false);//将客户端坐标转换为远程端屏幕坐标
@@ -44,4 +45,7 @@ public:
 	afx_msg void OnMButtonDblClk(UINT nFlags, CPoint point);
 	afx_msg void OnStnClickedWatch();
 	virtual void OnOK();
+	afx_msg void OnBnClickedBtnLock();
+	// 锁机按钮
+	CButton m_lock;
 };

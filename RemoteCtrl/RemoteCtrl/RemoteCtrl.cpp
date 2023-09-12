@@ -305,7 +305,7 @@ int DelFile() {//删除文件
 	pServer->GetFilePath(strPath);
 	TCHAR sPath[MAX_PATH] = _T("");
 	//mbstowcs(sPath, strPath.c_str(), strPath.size());//将多字节字符序列转换为对应的宽字符序列
-	MultiByteToWideChar(CP_ACP,0,strPath.c_str(),strPath.size(),sPath,sizeof(sPath)/sizeof(TCHAR));//将字符串映射到UTF-16(宽字符)字符串，字符串不一定来自多字节字符串。
+	MultiByteToWideChar(CP_ACP, 0, strPath.c_str(), strPath.size(), sPath, sizeof(sPath) / sizeof(TCHAR));//将字符串映射到UTF-16(宽字符)字符串，字符串不一定来自多字节字符串。
 	if (DeleteFile(sPath)) {
 		OutputDebugString(_T("文件删除成功"));
 		char data[] = "删除文件成功!";
@@ -349,6 +349,17 @@ unsigned __stdcall threadLockDlg(void* arg) {//锁机不能放在主线程里，
 	rect.bottom = GetSystemMetrics(SM_CYFULLSCREEN) + 30;//检索主显示器全屏窗口工作区高度(以像素为单位)
 	TRACE("right:%d  bottom:%d\n", rect.right, rect.bottom);
 	dlg.MoveWindow(&rect);//更改窗口的位置和尺寸
+
+	//将锁机后的文本居中
+	CWnd* m_text = dlg.GetDlgItem(IDC_STATIC);//通过ID检索对话框或控件的指针
+	if (m_text != NULL) {
+		CRect rText;
+		m_text->GetWindowRect(rText);//获取对象边框的尺寸
+		int x = (rect.right - rText.Width()) / 2;//锁机文本左上角x坐标
+		int y = (rect.bottom - rText.Height()) / 2;//锁机文本左上角y坐标
+		m_text->MoveWindow(x, y, rText.Width(), rText.Height());
+	}
+
 	//窗口置顶
 	dlg.SetWindowPos(&dlg.wndTopMost, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE);//更改子窗口的位置，将它设置到最顶部,SWP_NOSIZE 保留当前大小, SWP_NOMOVE 保留当前位置
 	//这是没有显示窗口是因为缺少消息循环
@@ -357,7 +368,7 @@ unsigned __stdcall threadLockDlg(void* arg) {//锁机不能放在主线程里，
 	ShowWindow(FindWindow(_T("Shell_TrayWnd"), NULL), SW_HIDE);
 	ShowCursor(FALSE);//隐藏鼠标，锁机之前隐藏鼠标，锁机之后显示鼠标
 	//限制鼠标的活动范围
-		//dlg.GetWindowRect(&rect);//获取CWnd对话框的屏幕坐标
+	//dlg.GetWindowRect(&rect);//获取CWnd对话框的屏幕坐标
 	rect.left = rect.left + 1;//左上角x坐标
 	rect.right = rect.left + 1;//右下角x坐标
 	rect.bottom = rect.top + 1;//右下角y坐标
@@ -371,11 +382,13 @@ unsigned __stdcall threadLockDlg(void* arg) {//锁机不能放在主线程里，
 		if (msg.message == WM_KEYDOWN) {//WM_KEYDOWN 按下非系统键(未按下Alt键时按下的键)
 			TRACE("message:%08X  wParam:%08X  lParam:%08X\n", msg.message, msg.wParam, msg.lParam);//08X表示以16进制输出8个字符
 			if (0X1B == msg.wParam) {//只有按键为Esc键时才会销毁窗口。
-				dlg.DestroyWindow();//销毁窗口
+
 				break;
 			}
 		}
 	}
+	dlg.DestroyWindow();//销毁窗口
+	ClipCursor(NULL);//恢复鼠标的活动范围
 	ShowCursor(TRUE);//显示鼠标
 	ShowWindow(FindWindow(_T("Shell_TrayWnd"), NULL), SW_SHOW);//显示任务栏
 	_endthreadex(0);//终止由_beginthreadex 创建的线程

@@ -26,6 +26,7 @@ void CWatchDialog::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_WATCH, m_picture);
+	DDX_Control(pDX, IDC_BTN_LOCK, m_lock);
 }
 
 
@@ -42,16 +43,16 @@ BEGIN_MESSAGE_MAP(CWatchDialog, CDialog)
 	ON_WM_MBUTTONUP()
 	ON_WM_MBUTTONDBLCLK()
 	ON_STN_CLICKED(IDC_WATCH, &CWatchDialog::OnStnClickedWatch)
+	ON_BN_CLICKED(IDC_BTN_LOCK, &CWatchDialog::OnBnClickedBtnLock)
 END_MESSAGE_MAP()
 
 
 // CWatchDialog 消息处理程序
 
-
 BOOL CWatchDialog::OnInitDialog()
 {
 	CDialog::OnInitDialog();
-
+	islock = false;
 	// TODO:  在此添加额外的初始化
 	SetTimer(0, 45, NULL);//安装系统计时器，第一个参数为0是该窗口的默认定时器，第二个参数指定时间间隔50ms
 	return TRUE;  // return TRUE unless you set the focus to a control
@@ -101,7 +102,7 @@ CPoint CWatchDialog::ConvertRemoteScreenPoint(CPoint& point, bool IsClientCoor)/
 
 		//远程端的鼠标坐标
 		int x = point.x * m_width / width0;
-		int y = point.y * m_height / height0;
+		int y = (point.y-33) * m_height / height0;
 		return CPoint(x, y);
 	}
 	return 0;
@@ -281,4 +282,24 @@ void CWatchDialog::OnOK()
 	// TODO: 在此添加专用代码和/或调用基类
 
 	//CDialog::OnOK();
+}
+
+
+void CWatchDialog::OnBnClickedBtnLock()
+{
+	// TODO: 在此添加控件通知处理程序代码
+	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
+	CString LockText;
+	m_lock.GetWindowText(LockText);
+	if (islock==false) {//没锁，点的是锁机
+		m_lock.SetWindowText("解锁");
+		islock = true;
+		
+		pParent->SendPacket(8, NULL, 0);
+	}
+	else if (islock=true) {//锁了，点的是解锁
+		m_lock.SetWindowText("锁机");
+		islock = false;
+		pParent->SendPacket(9, NULL, 0);
+	}
 }
