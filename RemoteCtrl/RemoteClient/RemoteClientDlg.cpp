@@ -121,7 +121,7 @@ BOOL CRemoteClientDlg::OnInitDialog()//创建对话框时，该函数就会被�
 
 	// TODO: 在此添加额外的初始化代码
 	UpdateData();//将控件的值赋给成员变量
-	m_servaddress = 0x7F000001;//127.0.0.1
+	m_servaddress = 0xC0A89480;//127.0.0.1->192.168.148.128
 	m_port = "6000";
 	UpdateData(FALSE);//将成员变量的值赋给控件
 
@@ -414,7 +414,7 @@ unsigned __stdcall CRemoteClientDlg::threadEntryWatchData(void* arg)
 {
 	CRemoteClientDlg* thiz = (CRemoteClientDlg*)arg;
 	thiz->threadWatchData();
-	_endthreadex(0);//终止线程
+	//_endthreadex(0);//终止线程
 	return 0;
 }
 
@@ -422,7 +422,7 @@ void CRemoteClientDlg::threadWatchData()
 {
 	Sleep(50);
 	//ULONGLONG ret = GetTickCount64();//检索自启动以来经过的毫秒数
-	for (;;) {//等价于while(true)
+	while (m_isClosed == false) {//不关闭对话框
 		//if (GetTickCount64() - ret < 50) { //这里是每过50ms在接收数据
 		//	Sleep(50 + ret - GetTickCount64());
 		//	//Sleep(GetTickCount64() - ret);
@@ -450,6 +450,8 @@ void CRemoteClientDlg::threadWatchData()
 					pStream->Write(pData, m_hSocket->Getpacket().strData.size(), &length);//数据从缓存区中写入指定的流。
 					LARGE_INTEGER bg = { 0 };
 					pStream->Seek(bg, STREAM_SEEK_SET, NULL);//查找指针更改为新位置
+					if (m_image != NULL)
+						m_image.Destroy();
 					m_image.Load(pStream);//加载图像
 					m_isFull = true;
 				}
@@ -544,13 +546,17 @@ LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)// WPARAM �
 void CRemoteClientDlg::OnBnClickedBtnStartWatch()
 {
 	// TODO: 在此添加控件通知处理程序代码
+	m_isClosed = false;
+
 	unsigned thraddr;
 	CWatchDialog dlg;
-	_beginthreadex(NULL, 0, CRemoteClientDlg::threadEntryWatchData, this, 0, &thraddr);
+	HANDLE hThread=(HANDLE)_beginthreadex(NULL, 0, CRemoteClientDlg::threadEntryWatchData, this, 0, &thraddr);
 	//此时因为监控对话框定义的是模态的，所以不用担心狂点远程监控按钮的问题
 	//GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);//EnableWindow 启用或禁用鼠标和键盘输入，TRUE:启用 FALSE:禁用 防止狂点
 
 	dlg.DoModal();//将监控对话框设为模态对话框
+	WaitForSingleObject(hThread, 500);//等待500ms关闭监控对话框
+	m_isClosed = true;
 }
 
 

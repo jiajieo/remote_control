@@ -25,9 +25,12 @@ public:
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	CStatic m_picture;//显示区域
 
+	int m_width;//被控端屏幕的宽
+	int m_height;//被控端屏幕的高
+
 private:
 	CPoint ConvertRemoteScreenPoint(CPoint& point,bool IsClientCoor=false);//将客户端坐标转换为远程端屏幕坐标
-
+	
 	afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
 	afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
 	afx_msg void OnRButtonDblClk(UINT nFlags, CPoint point);
@@ -40,4 +43,5 @@ private:
 public:
 	afx_msg void OnMButtonDblClk(UINT nFlags, CPoint point);
 	afx_msg void OnStnClickedWatch();
+	virtual void OnOK();
 };

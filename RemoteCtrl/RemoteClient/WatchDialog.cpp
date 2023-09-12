@@ -14,7 +14,8 @@ IMPLEMENT_DYNAMIC(CWatchDialog, CDialog)
 CWatchDialog::CWatchDialog(CWnd* pParent /*=nullptr*/)
 	: CDialog(IDD_DLG_WATCH, pParent)
 {
-
+	m_width = -1;
+	m_height = -1;
 }
 
 CWatchDialog::~CWatchDialog()
@@ -72,6 +73,12 @@ void CWatchDialog::OnTimer(UINT_PTR nIDEvent)
 			//BitBlt()将位图从源设备上下文复制到当前设备上下文；GetDC()检索指向工作区的设备上下文；GetSafeHdc()获取设备上下文的句柄m_hDC
 			//m_picture.InvalidateRect(NULL);//重绘，将给定矩形添加到更新区域 这里不需要
 
+			//远程端屏幕大小
+			if (m_width == -1 || m_height == -1) {
+				m_width = pParent->GetImage().GetWidth();
+				m_height = pParent->GetImage().GetHeight();
+			}
+
 			pParent->GetImage().Destroy();//分离位图并销毁位图
 			pParent->SetNoImage();//设为无缓存 m_isFull=false
 		}
@@ -83,20 +90,21 @@ void CWatchDialog::OnTimer(UINT_PTR nIDEvent)
 
 CPoint CWatchDialog::ConvertRemoteScreenPoint(CPoint& point, bool IsClientCoor)//将控制端展现的鼠标坐标转换为远程端被控画面的坐标
 {
-	CRect Clientrect;
-	//加个条件:如果坐标已经在客户端坐标内就不用再转换为客户端坐标了
-	if (IsClientCoor)
-		ScreenToClient(&point);//将给定的坐标转换为客户端坐标
-	m_picture.GetWindowRect(&Clientrect);//获取客户端屏幕大小
-	int width0 = Clientrect.Width();
-	int height0 = Clientrect.Height();
-	//远程端屏幕大小
-	int width = 1920;
-	int height = 1080;
-	//远程端的鼠标坐标
-	int x = point.x * width / width0;
-	int y = point.y * height / height0;
-	return CPoint(x, y);
+	if (m_width != -1 && m_height != -1) {
+		CRect Clientrect;
+		//加个条件:如果坐标已经在客户端坐标内就不用再转换为客户端坐标了
+		if (IsClientCoor)
+			ScreenToClient(&point);//将给定的坐标转换为客户端坐标
+		m_picture.GetWindowRect(&Clientrect);//获取客户端屏幕大小
+		int width0 = Clientrect.Width();
+		int height0 = Clientrect.Height();
+
+		//远程端的鼠标坐标
+		int x = point.x * m_width / width0;
+		int y = point.y * m_height / height0;
+		return CPoint(x, y);
+	}
+	return 0;
 }
 //typedef struct mouseev {
 //	mouseev() {//初始化
@@ -258,11 +266,19 @@ void CWatchDialog::OnStnClickedWatch()//只有将Picture Control（图片控件�
 	// TODO: 在此添加控件通知处理程序代码
 	CPoint point;
 	GetCursorPos(&point);
-	CPoint remote = ConvertRemoteScreenPoint(point,true);
+	CPoint remote = ConvertRemoteScreenPoint(point, true);
 	MOUSEEV mouse;
 	mouse.nAction = 0;
 	mouse.nButton = 0;
 	mouse.ptXY = remote;
 	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
 	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+}
+
+
+void CWatchDialog::OnOK()
+{
+	// TODO: 在此添加专用代码和/或调用基类
+
+	//CDialog::OnOK();
 }

@@ -82,7 +82,7 @@ private:
 	CStatusDlg m_status;
 	CImage m_image;//缓存，提供了增强的位图支持，能够加载和保存JPEG、GIF、BMP的图像。
 	bool m_isFull;//是否有缓存,false无缓存,true有缓存 初始化为无缓存
-	
+	bool m_isClosed;//监控对话框是否关闭
 
 public:
 	CTreeCtrl m_tree;//文件目录树形控件变量

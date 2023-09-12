@@ -243,7 +243,8 @@ int MouseEvent() {//鼠标操作
 			break;
 
 		case 0X08://鼠标移动
-			mouse_event(MOUSEEVENTF_MOVE, mouse.ptXY.x, mouse.ptXY.y, 0, GetMessageExtraInfo());
+			//mouse_event(MOUSEEVENTF_MOVE, mouse.ptXY.x, mouse.ptXY.y, 0, GetMessageExtraInfo());
+			SetCursorPos(mouse.ptXY.x, mouse.ptXY.y);//将光标移动到指定的屏幕坐标
 			break;
 		}
 		//鼠标操作处理完后，发消息验证一下

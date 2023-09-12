@@ -157,7 +157,7 @@ public:
 		SOCKADDR_IN addrSrv;
 		memset(&addrSrv, 0, sizeof(addrSrv));//定义的结构体要清空
 		addrSrv.sin_addr.S_un.S_addr = htonl(INADDR_ANY);//用来保存IP地址信息，htonl(INADDR_ANY)在服务端指本机的所有IP地址信息; INADDR_ANY 所有的IP都去监听，保证客户端可以连上来。
-		addrSrv.sin_family = AF_INET;//传输的地址族,IP类型
+		addrSrv.sin_family = AF_INET;//传输的地址族,IP类型IPv4
 		addrSrv.sin_port = htons(6000);//用来保存端口号
 		if (SOCKET_ERROR == bind(m_sockSrv, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR))) {
 			TRACE("bind error=%d\n", WSAGetLastError());
