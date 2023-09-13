@@ -289,8 +289,6 @@ void CWatchDialog::OnBnClickedBtnLock()
 {
 	// TODO: 在此添加控件通知处理程序代码
 	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	CString LockText;
-	m_lock.GetWindowText(LockText);
 	if (islock==false) {//没锁，点的是锁机
 		m_lock.SetWindowText("解锁");
 		islock = true;
