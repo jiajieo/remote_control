@@ -453,7 +453,7 @@ int ExcuteCommand(int nCmd) {//命令分类处理
 		break;
 	case 9://解锁
 		ret = UnLockMachine();
-		while ((dlg.m_hWnd != NULL)) {
+		while (dlg.m_hWnd != NULL) {
 			Sleep(100);//等待线程执行结束；不能直接退出，因为线程还未析构
 		}
 		break;
