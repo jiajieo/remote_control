@@ -1,5 +1,4 @@
 #pragma once
-void Dump(BYTE* pData, size_t nSize);
 
 typedef struct fileinfo {//结构体默认是public,类默认是private.
 	fileinfo() {

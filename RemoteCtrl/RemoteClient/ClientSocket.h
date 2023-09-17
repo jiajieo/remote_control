@@ -138,7 +138,7 @@ typedef struct mouseev {
 
 std::string GetError(int a);//a:WSAGetLastError() 函数的参数一定不能写宏定义的。
 
-#define BUFFER_SIZE 819200//接收数据包的缓冲区大小
+#define BUFFER_SIZE 8192000//接收数据包的缓冲区大小
 class CClientSocket
 {
 public:
