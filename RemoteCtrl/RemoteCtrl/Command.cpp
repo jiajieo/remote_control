@@ -3,7 +3,6 @@
 #include <direct.h>
 #include "Tool.h"
 #include <io.h>
-#include <list>
 #include <atlimage.h>
 #include "Resource.h"
 
@@ -32,16 +31,28 @@ CCommand::CCommand()
 	}
 }
 
-int CCommand::ExcuteCommand(int nCmd)
+int CCommand::ExcuteCommand(int nCmd, std::list<CPacket>& lstPacket, CPacket& packet)
 {
-	m_pServer = CServerSocket::getInstance();
 	std::map<int, CMDFUNC>::iterator it = m_mapFunction.find(nCmd);//定义一个迭代器能够取出map容器里面的数据
 	if (it == m_mapFunction.end())//m_mapFunction.end()返回指向容器末尾的迭代器
 	{//没找到该命令
 		return -1;
 	}
 	//找到该命令就返回该元素的成员函数指针对象
-	return (this->*(it->second))();//this->*是取了我的一个成员
+	return (this->*(it->second))(lstPacket, packet);//this->*是取了我的一个成员
+}
+
+void CCommand::RunCCommand(void* arg, int status, std::list<CPacket>& lstPacket, CPacket& packet)//arg返回该类的对象，status是接收到的命令
+{
+	CCommand* thiz = (CCommand*)arg;
+	if (status > 0) {
+		if (thiz->ExcuteCommand(status, lstPacket, packet) != 0) {//命令执行成功会返回0
+			TRACE("执行命令失败:sCmd=%d\n", status);
+		}
+	}
+	else {
+		MessageBox(NULL, _T("服务端连接失败，自动重试！"), _T("错误"), MB_OK | MB_ICONERROR);//NULL表示悬空弹窗窗口
+	}
 }
 
 
@@ -90,7 +101,7 @@ int CCommand::ExcuteCommand(int nCmd)
 //	return 0;
 //}
 
-int CCommand::MakeDriverInfo()//创建一个磁盘分区
+int CCommand::MakeDriverInfo(std::list<CPacket>& lstPacket, CPacket& packet)//创建一个磁盘分区
 {
 	std::string result;
 	for (int i = 1; i <= 26; i++) {//查找磁盘分区
@@ -103,21 +114,21 @@ int CCommand::MakeDriverInfo()//创建一个磁盘分区
 		}
 	}
 	//对数据进行打包
-	CPacket pack(1, result.c_str(), result.size());
-	CTool::Dump((BYTE*)pack.Data(), pack.Size());
+	lstPacket.push_back(CPacket(1, result.c_str(), result.size()));//从尾部插入到链表容器
+	//CTool::Dump((BYTE*)pack.Data(), pack.Size());
 	//拿到实例发送数据
-	m_pServer->Send(pack);
+	//m_pServer->Send(pack);
 	return 0;
 }
 
-int CCommand::MakeDirectoryInfo()//查看指定目录下的文件
+int CCommand::MakeDirectoryInfo(std::list<CPacket>& lstPacket, CPacket& packet)//查看指定目录下的文件
 {
-	std::string strPath;
+	std::string strPath = packet.strData;
 	//std::list<FILEINFO> lstFileInfo;//用该结构体定义一个链表，方便文件处理
-	if (m_pServer->GetFilePath(strPath) == false) {
+	/*if (m_pServer->GetFilePath(strPath) == false) {
 		OutputDebugString(_T("错误，当前命令不是获取文件路径的命令！\n"));
 		return -1;
-	}
+	}*/
 	//数据获取成功，查看文件处理
 	if (_chdir(strPath.c_str()) != 0) {//更改当前工作目录，进入指定目录，与_findfirst可配合使用
 		//目录不存在的情况
@@ -125,8 +136,8 @@ int CCommand::MakeDirectoryInfo()//查看指定目录下的文件
 		tempfile.IsInvalid = TRUE;//目录无效
 		tempfile.IsHasNext = FALSE;
 		//lstFileInfo.push_back(tempfile);
-		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
-		m_pServer->Send(pack);
+		lstPacket.push_back(CPacket(2, (char*)&tempfile, sizeof(tempfile)));
+		//m_pServer->Send(pack);
 		OutputDebugString(_T("该目录不存在！\n"));
 		return -2;
 	}
@@ -136,8 +147,8 @@ int CCommand::MakeDirectoryInfo()//查看指定目录下的文件
 	if ((hfind = _findfirst("*", &filedata)) == -1) {//在当前目录下查找文件或子目录，提供与参数filespec中指定的文件名匹配的第一个实例。_findfirst接收一个通配符字符串作为参数，可以用于查找文件或文件夹。
 		fileinfo tempfile;
 		tempfile.IsHasNext = FALSE;
-		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
-		m_pServer->Send(pack);
+		lstPacket.push_back(CPacket(2, (char*)&tempfile, sizeof(tempfile)));
+		//m_pServer->Send(pack);
 		OutputDebugString(_T("没有找到该文件！\n"));//输出调试模式一般在Debug模式下，不过如果不加控制条件，在release模式下也可以使用
 		return -3;
 	}
@@ -148,48 +159,48 @@ int CCommand::MakeDirectoryInfo()//查看指定目录下的文件
 		memcpy(tempfile.szFileName, filedata.name, strlen(filedata.name));
 		//lstFileInfo.push_back(tempfile);
 		TRACE("serv[%s] IsDirectory:%d\r\n", tempfile.szFileName, tempfile.IsDirectory);
-		CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
+		lstPacket.push_back(CPacket(2, (char*)&tempfile, sizeof(tempfile)));
 		//Dump((BYTE*)pack.Data(), pack.Size());
 		Sleep(1);
-		m_pServer->Send(pack);
+		//m_pServer->Send(pack);
 		count++;
 	} while (!_findnext(hfind, &filedata));//查找下一个名称  _findnext()如果成功返回0
 	//发送信息到控制端，但是如果该文件夹有大量的文件，一次性发完效果不是很好，所以要一个一个发，但是从用户体验方面来说，后者与用户有交互，可以随时反馈，所以这里选后者，结构体加一个是否还有后续的判断变量
 	TRACE("服务端%s路径的%d个文件全部发送！\n", strPath.c_str(), count);
 	fileinfo tempfile;
 	tempfile.IsHasNext = FALSE;
-	CPacket pack(2, (char*)&tempfile, sizeof(tempfile));
+	lstPacket.push_back(CPacket(2, (char*)&tempfile, sizeof(tempfile)));
 
-	m_pServer->Send(pack);
+	//m_pServer->Send(pack);
 
 	return 0;
 }
 
-int CCommand::RunFile()//这里是运行而不是打开文件是因为有些文件是.exe，有些文件是默认应用打开
+int CCommand::RunFile(std::list<CPacket>& lstPacket, CPacket& packet)//这里是运行而不是打开文件是因为有些文件是.exe，有些文件是默认应用打开
 {
-	std::string strPath;
-	m_pServer->GetFilePath(strPath);
+	std::string strPath = packet.strData;
+	/*m_pServer->GetFilePath(strPath);*/
 	HINSTANCE ret = ShellExecuteA(NULL, "open", strPath.c_str(), NULL, NULL, SW_SHOW);//对指定文件执行操作，相当于双击文件  ShellExecute是Unicode字符集的，ShellExecuteA是多字符集的，所以这里用后者
 	if ((int)ret <= 32) {
 		TRACE("文件打开失败:%d\n", GetLastError());
 		return -1;
 	}
 	Sleep(1);
-	CPacket pack(3, NULL, NULL);
-	m_pServer->Send(pack);
+	lstPacket.push_back(CPacket(3, NULL, NULL));
+	//m_pServer->Send(pack);
 	return 0;
 }
 
-int CCommand::DownloadFile()//下载文件
+int CCommand::DownloadFile(std::list<CPacket>& lstPacket, CPacket& packet)//下载文件
 {
-	std::string strPath;
-	m_pServer->GetFilePath(strPath);
+	std::string strPath = packet.strData;
+	/*m_pServer->GetFilePath(strPath);*/
 	long long data = 0;
 	FILE* pFile = NULL;//文件默认为NULL，因为可能存在文件打开了但读不到数据，但是fopen_s如果失败了，那pFile还是NULL.
 	errno_t err = fopen_s(&pFile, strPath.c_str(), "rb");//可读打开一个二进制文件，文本可以通过二进制方式来读，但二进制文件不能文本方式读。
 	if (err != 0) {//打开失败
-		CPacket pack(4, (char*)data, 8);//下载文件默认长度为0
-		m_pServer->Send(pack);
+		lstPacket.push_back(CPacket(4, (char*)data, 8));//下载文件默认长度为0
+		//m_pServer->Send(pack);
 		return -1;
 	}
 	if (pFile != NULL) {
@@ -197,8 +208,8 @@ int CCommand::DownloadFile()//下载文件
 		data = _ftelli64(pFile);//获取指针当前位置；如果处理大型文件，就用_ftelli64，即64位有符号整数类型，可处理大于2GB的文件。
 		//char* len= new char[10];
 		//sprintf(len, "%lld", data);
-		CPacket pack(4, (char*)&data, 8);//将要下载的文件大小发送到控制端
-		m_pServer->Send(pack);
+		lstPacket.push_back(CPacket(4, (char*)&data, 8));//将要下载的文件大小发送到控制端
+		//m_pServer->Send(pack);
 		//delete[] len;
 		fseek(pFile, 0, SEEK_SET);//恢复文件指针
 		char buffer[1024] = { 0 };
@@ -206,117 +217,112 @@ int CCommand::DownloadFile()//下载文件
 		size_t rlen = 0;
 		do {
 			rlen = fread(buffer, 1, sizeof(buffer), pFile);//从流读取数据
-			CPacket pack(4, buffer, rlen);
+			lstPacket.push_back(CPacket(4, buffer, rlen));
 			Sleep(1);//等待接受的时间，否则接收不全
-			m_pServer->Send(pack);
+			//m_pServer->Send(pack);
 			count += rlen;
 			memset(buffer, 0, sizeof(buffer));
 		} while (rlen > 0);//只要读到了就可以继续读或rlen>=1024
 		TRACE("下载的文件大小:%d\n", count);
 		fclose(pFile);//关闭文件
 	}
-	CPacket pack(4, NULL, 0);
-	m_pServer->Send(pack);
+	lstPacket.push_back(CPacket(4, NULL, 0));
+	//m_pServer->Send(pack);
 	return 0;
 }
 
-int CCommand::MouseEvent()//鼠标操作
+int CCommand::MouseEvent(std::list<CPacket>& lstPacket, CPacket& packet)//鼠标操作
 {
 	mouseev mouse;
-	if (m_pServer->GetMouseEvent(mouse)) {
-		WORD nFlag;//2字节 0000 0000  0000 0000,设置一个标志位来处理鼠标按键信息
-		switch (mouse.nButton) {
-		case 0://左键
-			nFlag = 1;//0001
-			break;
-		case 1://右键
-			nFlag = 2;//0010
-			break;
-		case 2://中键
-			nFlag = 4;//0100
-			break;
-		case 3://没有按键，单纯鼠标移动
-			nFlag = 8;//1000
-			break;
-		}
-		if (nFlag != 8)//没有按键的鼠标坐标搞定了，其余有按键时鼠标坐标在这里搞
-			SetCursorPos(mouse.ptXY.x, mouse.ptXY.y);//将光标移动到指定的屏幕坐标
-		switch (mouse.nAction) {
-		case 0://单击
-			nFlag |= 0X10;//0001 0000
-			break;
-		case 1://双击
-			nFlag |= 0X20;//0010 0000
-			break;
-		case 2://按下
-			nFlag |= 0X40;//0100 0000
-			break;
-		case 4://放开
-			nFlag |= 0X80;//1000 0000
-			break;
-		default://没有按键直接退出
-			break;
-		}
-		switch (nFlag) {
-		case 0X21://左键双击
-			mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, GetMessageExtraInfo());//鼠标运动和按钮单击,GetMessageExtraInfo()与鼠标事件关联的额外消息信息
-			mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
-		case 0X11://左键单击
-			mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, GetMessageExtraInfo());
-			mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
-			break;//单击就执行1次按下、放开，双击就执行2次
-		case 0X41://左键按下
-			mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, GetMessageExtraInfo());
-			break;
-		case 0X81://左键放开
-			mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
-			break;
-
-		case 0X22://右键双击
-			mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, GetMessageExtraInfo());
-			mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
-		case 0X12://右键单击
-			mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, GetMessageExtraInfo());
-			mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
-			break;
-		case 0X42://右键按下
-			mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, GetMessageExtraInfo());
-			break;
-		case 0X82://右键放开
-			mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
-			break;
-
-		case 0X24://中键双击
-			mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
-			mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
-		case 0X14://中键单击
-			mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
-			mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
-			break;
-		case 0X44://中键按下
-			mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
-			break;
-		case 0X84://中键放开
-			mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
-			break;
-
-		case 0X08://鼠标移动
-			//mouse_event(MOUSEEVENTF_MOVE, mouse.ptXY.x, mouse.ptXY.y, 0, GetMessageExtraInfo());
-			SetCursorPos(mouse.ptXY.x, mouse.ptXY.y);//将光标移动到指定的屏幕坐标
-			break;
-		}
-		//鼠标操作处理完后，发消息验证一下
-		CPacket pack(4, NULL, 0);
-		m_pServer->Send(pack);
+	memcpy(&mouse, packet.strData.c_str(), sizeof(MOUSEEV));
+	WORD nFlag;//2字节 0000 0000  0000 0000,设置一个标志位来处理鼠标按键信息
+	switch (mouse.nButton) {
+	case 0://左键
+		nFlag = 1;//0001
+		break;
+	case 1://右键
+		nFlag = 2;//0010
+		break;
+	case 2://中键
+		nFlag = 4;//0100
+		break;
+	case 3://没有按键，单纯鼠标移动
+		nFlag = 8;//1000
+		break;
 	}
-	else {
-		OutputDebugString(_T("获取鼠标参数失败！"));
-		return -1;
+	if (nFlag != 8)//没有按键的鼠标坐标搞定了，其余有按键时鼠标坐标在这里搞
+		SetCursorPos(mouse.ptXY.x, mouse.ptXY.y);//将光标移动到指定的屏幕坐标
+	switch (mouse.nAction) {
+	case 0://单击
+		nFlag |= 0X10;//0001 0000
+		break;
+	case 1://双击
+		nFlag |= 0X20;//0010 0000
+		break;
+	case 2://按下
+		nFlag |= 0X40;//0100 0000
+		break;
+	case 4://放开
+		nFlag |= 0X80;//1000 0000
+		break;
+	default://没有按键直接退出
+		break;
 	}
+	switch (nFlag) {
+	case 0X21://左键双击
+		mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, GetMessageExtraInfo());//鼠标运动和按钮单击,GetMessageExtraInfo()与鼠标事件关联的额外消息信息
+		mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
+	case 0X11://左键单击
+		mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, GetMessageExtraInfo());
+		mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
+		break;//单击就执行1次按下、放开，双击就执行2次
+	case 0X41://左键按下
+		mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, GetMessageExtraInfo());
+		break;
+	case 0X81://左键放开
+		mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, GetMessageExtraInfo());
+		break;
+
+	case 0X22://右键双击
+		mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, GetMessageExtraInfo());
+		mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
+	case 0X12://右键单击
+		mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, GetMessageExtraInfo());
+		mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
+		break;
+	case 0X42://右键按下
+		mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, GetMessageExtraInfo());
+		break;
+	case 0X82://右键放开
+		mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, GetMessageExtraInfo());
+		break;
+
+	case 0X24://中键双击
+		mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
+		mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
+	case 0X14://中键单击
+		mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
+		mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
+		break;
+	case 0X44://中键按下
+		mouse_event(MOUSEEVENTF_MIDDLEDOWN, 0, 0, 0, GetMessageExtraInfo());
+		break;
+	case 0X84://中键放开
+		mouse_event(MOUSEEVENTF_MIDDLEUP, 0, 0, 0, GetMessageExtraInfo());
+		break;
+
+	case 0X08://鼠标移动
+		//mouse_event(MOUSEEVENTF_MOVE, mouse.ptXY.x, mouse.ptXY.y, 0, GetMessageExtraInfo());
+		SetCursorPos(mouse.ptXY.x, mouse.ptXY.y);//将光标移动到指定的屏幕坐标
+		break;
+	}
+	//鼠标操作处理完后，发消息验证一下
+	lstPacket.push_back(CPacket(4, NULL, 0));
+	//m_pServer->Send(pack);
 	return 0;
 }
 
-int CCommand::SendScreen()//远程监控，屏幕截图发送给控制端，这里不需要从控制端获取数据
+int CCommand::SendScreen(std::list<CPacket>& lstPacket,CPacket& packet)//远程监控，屏幕截图发送给控制端，这里不需要从控制端获取数据
 {
 	CImage screen;//提供增强的位图支持，能够加载和保存JPEG、GIF、BMP和可移植网络图形格式PNG的图像。CImage里面封装了很多关于图形图像的操作，非常适合Windows下的GDI编程(图形设备接口)
 	//获取屏幕的句柄
@@ -342,8 +348,8 @@ int CCommand::SendScreen()//远程监控，屏幕截图发送给控制端，这里不需要从控制端获
 		pStream->Seek(bg, STREAM_SEEK_SET, NULL);//将查找指针更改为新位置。bg表示流对象指针的偏移量
 		PBYTE pdata = (PBYTE)GlobalLock(hMem);//返回该对象内存块的第一个字节的指针。
 		SIZE_T nSize = GlobalSize(hMem);//检索全局内存对象的当前大小(以字节为单位)
-		CPacket pack(6, (const char*)pdata, nSize);
-		m_pServer->Send(pack);
+		lstPacket.push_back(CPacket(6, (const char*)pdata, nSize));
+		//m_pServer->Send(pack);
 	}
 	GlobalUnlock(hMem);//用于解锁由GlobalLock 函数锁定的内存块
 	pStream->Release(); //用于释放IStream 接口对象所占用的资源
@@ -357,24 +363,23 @@ int CCommand::SendScreen()//远程监控，屏幕截图发送给控制端，这里不需要从控制端获
 	return 0;
 }
 
-int CCommand::DelFile()//删除文件
+int CCommand::DelFile(std::list<CPacket>& lstPacket, CPacket& packet)//删除文件
 {
-	std::string strPath;
-	m_pServer->GetFilePath(strPath);
+	std::string strPath=packet.strData;
 	TCHAR sPath[MAX_PATH] = _T("");
 	//mbstowcs(sPath, strPath.c_str(), strPath.size());//将多字节字符序列转换为对应的宽字符序列
 	MultiByteToWideChar(CP_ACP, 0, strPath.c_str(), strPath.size(), sPath, sizeof(sPath) / sizeof(TCHAR));//将字符串映射到UTF-16(宽字符)字符串，字符串不一定来自多字节字符串。
 	if (DeleteFile(sPath)) {
 		OutputDebugString(_T("文件删除成功"));
 		char data[] = "删除文件成功!";
-		CPacket pack(7, data, strlen(data));
-		m_pServer->Send(pack);
+		lstPacket.push_back(CPacket(7, data, strlen(data)));
+		//m_pServer->Send(pack);
 	}
 	else {
 		OutputDebugString(_T("文件删除失败"));
 		char data[] = "删除文件失败!";
-		CPacket pack(7, data, strlen(data));
-		m_pServer->Send(pack);
+		lstPacket.push_back(CPacket(7, data, strlen(data)));
+		//m_pServer->Send(pack);
 	}
 	//if (std::remove(strPath.c_str()) == 0) {//删除文件
 	//	OutputDebugString(_T("文件删除成功"));
@@ -393,7 +398,7 @@ int CCommand::DelFile()//删除文件
 
 //unsigned __stdcall threadLockDlg(void* arg);
 
-int CCommand::LockMachine()//锁机
+int CCommand::LockMachine(std::list<CPacket>& lstPacket,CPacket& packet)//锁机
 {
 	if (dlg.m_hWnd == NULL || dlg.m_hWnd == INVALID_HANDLE_VALUE) {//锁机窗口不存在或创建失败；防止锁机重复执行
 		_beginthreadex(NULL, 0, threadLockDlg, NULL, 0, &threadid);//防止网络通信的时候锁机不会阻塞在这，导致无法退出循环接收外部解锁命令
@@ -401,28 +406,28 @@ int CCommand::LockMachine()//锁机
 	else {
 		TRACE("锁机重复了");
 	}
-	CPacket pack(8, NULL, 0);
-	m_pServer->Send(pack);
+	lstPacket.push_back(CPacket(8, NULL, 0));
+	//m_pServer->Send(pack);
 	Sleep(50);//等待当前线程的执行
 	return 0;
 }
 
-int CCommand::UnLockMachine()//解锁
+int CCommand::UnLockMachine(std::list<CPacket>& lstPacket, CPacket& packet)//解锁
 {
 	//dlg.SendMessage(WM_KEYDOWN, 0X1B, 0X10001);
 	PostThreadMessage(threadid, WM_KEYDOWN, 0X1B, 0X10001);//将消息发送到指定线程的消息队列,发送按下"Esc"键解锁。
-	CPacket pack(9, NULL, 0);
-	m_pServer->Send(pack);
+	lstPacket.push_back(CPacket(9, NULL, 0));
+	//m_pServer->Send(pack);
 	while (dlg.m_hWnd != NULL) {
 		Sleep(100);//等待线程执行结束；不能直接退出，因为线程还未析构
 	}
 	return 0;
 }
 
-int CCommand::ConnectTect()
+int CCommand::ConnectTect(std::list<CPacket>& lstPacket, CPacket& packet)
 {
-	CPacket pack(1981, NULL, 0);
-	m_pServer->Send(pack);
+	lstPacket.push_back(CPacket(1981, NULL, 0));
+	//m_pServer->Send(pack);
 	TRACE("1981连接测试成功\n");
 	return 0;
 }

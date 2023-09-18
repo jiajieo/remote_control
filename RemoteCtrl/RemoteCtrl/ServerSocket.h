@@ -1,138 +1,9 @@
 #pragma once
+#include <list>
+#include "CPacket.h"
+#include "Tool.h"
 
-typedef struct fileinfo {//结构体默认是public,类默认是private.
-	fileinfo() {
-		IsInvalid = FALSE;//默认是有效的
-		IsDirectory = -1;
-		IsHasNext = TRUE;//默认是有后续的
-		memset(szFileName, 0, sizeof(szFileName));
-	}
-	BOOL IsInvalid;//判断该目录是否无效
-	BOOL IsDirectory;//判断是目录(文件夹)还是文件 0:文件 1:目录
-	BOOL IsHasNext;//文件是否还有后续 1:是 0:否
-	char szFileName[256];//文件名
-}FILEINFO, * PFILEINFO;
-
-#pragma pack(push)
-#pragma pack(1)
-class CPacket {
-public:
-	CPacket() :sHead(0), nLength(0), sCmd(0), sSum(0) {
-
-	}
-	CPacket(const CPacket& pack) {
-		sHead = pack.sHead;
-		nLength = pack.nLength;
-		sCmd = pack.sCmd;
-		strData = pack.strData;
-		sSum = pack.sSum;
-	}
-	//打包数据
-	CPacket(WORD nCmd, const char* pData, size_t nSize) {
-		sHead = 0xFEFF;
-		nLength = nSize + 4;//+命令和校验是包长度
-		sCmd = nCmd;
-		if (nSize > 0) {
-			strData.resize(nSize);
-			memcpy((char*)strData.c_str(), pData, nSize);
-		}
-		else {
-			strData.clear();
-		}
-		sSum = 0;
-		for (size_t i = 0; i < strData.size(); i++) {
-			sSum += ((BYTE)strData[i] & 0xFF);
-		}
-	}
-	CPacket(const BYTE* pData, size_t nSize) {//方便解析数据，随便丢进来一个数据进行解析  BYTE:unsigned char BYTE 1字节
-		size_t i = 0;//字节长度跟踪
-		for (; i < nSize; i++) {
-			if (*(WORD*)(pData + i) == 0xFEFF) {//找到一个包头
-				sHead = *(WORD*)(pData + i);
-				i += 2;//跳过包头
-				break;
-			}
-		}
-		if ((i + 4 + 2 + 2) > nSize) {//未找到包头或包头后无数据;i+4+2+2是除去包长度、命令、和校验后判断是否还有数据，如果没有直接退出函数
-			nSize = 0;//将nSize清0
-			return;
-		}
-		nLength = *(DWORD*)(pData + i);//获取包长度
-		i += 4;
-		if ((nLength + i) > nSize) {//数据没收全，只收到一半，说明缓冲区太小，数据包没接收完整，退出函数；因为包长度是从命令开始，到校验结束，所以这时开始判断。
-			nSize = 0;
-			return;
-		}
-		sCmd = *(WORD*)(pData + i);//获取命令
-		i += 2;
-		//获取包数据
-		if (nLength > 4) {//包长度>4才会有包数据的位置
-			strData.resize(nLength - 2 - 2);//为字符串指定新的大小；设置包数据的大小
-			memcpy((void*)strData.c_str(), (pData + i), (nLength - 2 - 2));//c_str()返回当前字符串的首字符地址，指向以空字符终止的数组；data()与c_str()类似，但返回的数组不以空字符终止
-			i += (nLength - 4);
-		}
-		sSum = *(WORD*)(pData + i);//获取和校验
-		i += 2;
-		//校验一下
-		WORD sum = 0;
-		for (size_t j = 0; j < strData.size(); j++) {//.size()返回字符串中元素的当前数目
-			sum += ((BYTE)strData[j] & 0xFF);//保持二进制补码的一致性
-		}
-		if (sum == sSum) {//解析成功
-			nSize = i;//等于整个数据包的长度，这里使用i而不是数据包长度，是因为前面还有废数据
-			return;
-		}
-		nSize = 0;//解析失败
-	}
-	~CPacket() {}
-
-	CPacket operator=(const CPacket& pack) {//运算符重载
-		if (this != &pack) {//this指向类自身的变量
-			sHead = pack.sHead;
-			nLength = pack.nLength;
-			sCmd = pack.sCmd;
-			strData = pack.strData;
-			sSum = pack.sSum;
-		}
-		return *this;
-	}
-
-	int Size() {//数据包的长度
-		return nLength + 2 + 4;
-	}
-
-	const char* Data() {//将整个数据包的数据转成字符串型，方便查看读取。
-		strOut.resize(Size());//将strOut字符串大小指定为整个数据包的长度
-		BYTE* pData = (BYTE*)strOut.c_str();//定义一个BYTE数据类型的指针指向整个包的数据字符串
-		*(WORD*)pData = sHead; pData += 2;
-		*(DWORD*)pData = nLength; pData += 4;
-		*(WORD*)pData = sCmd; pData += 2;
-		memcpy(pData, strData.c_str(), nLength - 4); pData += strData.size();
-		*(WORD*)pData = sSum; pData += 2;
-		return strOut.c_str();
-	}
-
-public://包数据是外部需要调用到的，所以这里用public
-	WORD sHead;//包头FE FF  unsigned short 2字节
-	DWORD nLength;//包长度，数据的字节长度(从命令开始，到和校验结束)  unsigned long 4字节
-	WORD sCmd;//命令
-	std::string strData;//包数据
-	WORD sSum;//和校验 将包数据进行加求和
-	std::string strOut;//整个包的数据，方便查看0001000000000001
-};
-#pragma pack(pop)
-
-typedef struct mouseev{
-	mouseev(){//初始化
-		nAction = 0;
-		nButton = 0;
-		ptXY.x = 0;
-		ptXY.y = 0;
-	}
-	WORD nAction;//首先是描述动作的:点击(单击、双击)、移动
-	WORD nButton;//左键、右键、中键
-	POINT ptXY;//坐标
-}MOUSEEV,*PMOUSEEV;
+typedef void(*SOCKET_CALLBACK)(void* arg, int cmd, std::list<CPacket>& lstPacket,CPacket&);//定义一个函数指针类型
 
 #define BUFFER_SIZE 409600//接收数据包的缓冲区大小
 class CServerSocket
@@ -145,6 +16,35 @@ public:
 		return m_instance;
 	}
 
+	int Run(SOCKET_CALLBACK callback, void* arg) {//arg是传递CCommand类对象
+		std::list<CPacket> lstPacket;//定义一个容器用来存储打包好的数据。
+		// 2.套接字的创建到监听
+		if (InitSocket() == false)return -1;
+		int count = 0;// 3.提供3次连接机会；服务端前面的初始化网络库和创建套接字不会变也不会关，只处理下面的被监控等待连接操作
+		while (true) {
+			if (Accept() == false) {
+				if (count >= 2) {
+					return -2;
+				}
+				count++;
+			}
+			//连接成功处理操作
+			//接收命令
+			int ret = Recv();
+			callback(arg, ret,lstPacket,m_pack);
+			while (lstPacket.size() > 0) {
+				Sleep(1);
+				Send(lstPacket.front());
+				lstPacket.pop_front();
+			}
+			//远程控制采用短连接
+			CloseClient();
+		}
+		/*m_callback = callback;
+		m_arg = arg;*/
+	}
+
+protected:
 	bool InitSocket() {//套接字创建及监听
 		//1 创建套接字
 		m_sockSrv = socket(PF_INET, SOCK_STREAM, 0);//AF_INET和PF_INET混用没太大问题，但指定上建立socket指定协议应该用PF_INET，设置地址时用AF_INET；这里使用TCP而不是UDP，因为要求发送的数据是可信的
@@ -167,6 +67,7 @@ public:
 			TRACE("listen error=%d\n", WSAGetLastError());
 			return false;
 		}
+
 		return true;
 	}
 
@@ -225,7 +126,7 @@ public:
 	}
 
 	bool GetFilePath(std::string& strPath) {//控制端想要获取文件路径的权限
-		if ((m_pack.sCmd == 2) || (m_pack.sCmd == 3)|| (m_pack.sCmd == 4)||(m_pack.sCmd==7)) {//控制命令2和3都可以获取要访问的路径
+		if ((m_pack.sCmd == 2) || (m_pack.sCmd == 3) || (m_pack.sCmd == 4) || (m_pack.sCmd == 7)) {//控制命令2和3都可以获取要访问的路径
 			strPath = m_pack.strData;
 			return true;
 		}
@@ -241,8 +142,10 @@ public:
 	}
 
 	void CloseClient() {
-		closesocket(m_sockcli);
-		m_sockcli = INVALID_SOCKET;
+		if (m_sockcli != INVALID_SOCKET) {
+			closesocket(m_sockcli);
+			m_sockcli = INVALID_SOCKET;
+		}
 	}
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
@@ -308,6 +211,9 @@ private:
 	SOCKET m_sockSrv;//定义套接字;非静态变量在构造函数里初始化
 	SOCKET m_sockcli;
 	CPacket m_pack;//接收的数据包处理
+
+	SOCKET_CALLBACK m_callback;
+	void* m_arg;
 };
 
 //extern CServerSocket server;
