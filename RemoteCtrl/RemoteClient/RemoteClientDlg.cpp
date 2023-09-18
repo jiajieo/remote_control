@@ -213,7 +213,7 @@ void CRemoteClientDlg::OnBnClickedBtnViewfile()//查看文件
 		dr += ":";
 	}
 	HTREEITEM hTemp = m_tree.InsertItem(dr.c_str(), TVI_ROOT, TVI_LAST);
-	m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+	m_tree.InsertItem(NULL, hTemp, TVI_LAST);//使该磁盘有后续
 }
 
 int CRemoteClientDlg::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAutoClose)//发送命令 

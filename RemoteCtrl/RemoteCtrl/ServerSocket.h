@@ -16,10 +16,10 @@ public:
 		return m_instance;
 	}
 
-	int Run(SOCKET_CALLBACK callback, void* arg) {//arg是传递CCommand类对象
+	int Run(SOCKET_CALLBACK callback, void* arg,short port=6000) {//arg是传递CCommand类对象
 		std::list<CPacket> lstPacket;//定义一个容器用来存储打包好的数据。
 		// 2.套接字的创建到监听
-		if (InitSocket() == false)return -1;
+		if (InitSocket(port) == false)return -1;
 		int count = 0;// 3.提供3次连接机会；服务端前面的初始化网络库和创建套接字不会变也不会关，只处理下面的被监控等待连接操作
 		while (true) {
 			if (Accept() == false) {
@@ -45,7 +45,7 @@ public:
 	}
 
 protected:
-	bool InitSocket() {//套接字创建及监听
+	bool InitSocket(short port) {//套接字创建及监听
 		//1 创建套接字
 		m_sockSrv = socket(PF_INET, SOCK_STREAM, 0);//AF_INET和PF_INET混用没太大问题，但指定上建立socket指定协议应该用PF_INET，设置地址时用AF_INET；这里使用TCP而不是UDP，因为要求发送的数据是可信的
 		if (INVALID_SOCKET == m_sockSrv) {
@@ -57,7 +57,7 @@ protected:
 		memset(&addrSrv, 0, sizeof(addrSrv));//定义的结构体要清空
 		addrSrv.sin_addr.S_un.S_addr = htonl(INADDR_ANY);//用来保存IP地址信息，htonl(INADDR_ANY)在服务端指本机的所有IP地址信息; INADDR_ANY 所有的IP都去监听，保证客户端可以连上来。
 		addrSrv.sin_family = AF_INET;//传输的地址族,IP类型IPv4
-		addrSrv.sin_port = htons(6000);//用来保存端口号
+		addrSrv.sin_port = htons(port);//用来保存端口号
 		if (SOCKET_ERROR == bind(m_sockSrv, (SOCKADDR*)&addrSrv, sizeof(SOCKADDR))) {
 			TRACE("bind error=%d\n", WSAGetLastError());
 			return false;
