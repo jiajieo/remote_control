@@ -15,7 +15,7 @@
 
 CWinApp theApp;
 using namespace std;
-
+//CLockDialog dlg;
 
 
 int main()

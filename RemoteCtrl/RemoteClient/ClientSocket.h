@@ -301,7 +301,7 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 		}
 	};
 
-private:
+private://成员变量是需要依赖这个类的实现的，是组合关系；但如果是指针就会从组合关系降为依赖关系
 	std::vector<char> m_buffer;
 	static CClientSocket* m_instance;//这里因为是类里的静态函数要访问的实例，所以要设为静态的
 	static CHelper m_helper;
