@@ -76,7 +76,7 @@ public:
 	~CPacket() {}
 
 	CPacket operator=(const CPacket& pack) {//运算符重载
-		if (this != &pack) {//this指向类自身的变量
+		if (this != &pack) {//this指向类自身的变量地址
 			sHead = pack.sHead;
 			nLength = pack.nLength;
 			sCmd = pack.sCmd;

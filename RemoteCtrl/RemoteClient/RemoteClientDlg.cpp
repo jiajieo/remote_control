@@ -158,7 +158,6 @@ void CRemoteClientDlg::OnPaint()//窗口每次重绘产生的消息
 		CPaintDC dc(this); // 用于绘制的设备上下文
 
 		SendMessage(WM_ICONERASEBKGND, reinterpret_cast<WPARAM>(dc.GetSafeHdc()), 0);//将指定的消息发送到一个或多个窗口  dc.GetSafeHdc()返回输出设备上下文
-
 		// 使图标在工作区矩形中居中
 		int cxIcon = GetSystemMetrics(SM_CXICON);
 		int cyIcon = GetSystemMetrics(SM_CYICON);
@@ -555,7 +554,7 @@ void CRemoteClientDlg::OnBnClickedBtnStartWatch()
 	//GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);//EnableWindow 启用或禁用鼠标和键盘输入，TRUE:启用 FALSE:禁用 防止狂点
 
 	dlg.DoModal();//将监控对话框设为模态对话框
-	WaitForSingleObject(hThread, 500);//等待500ms关闭监控对话框
+	WaitForSingleObject(hThread, 500);//监控对话框关闭后等待500ms关闭线程
 	m_isClosed = true;
 }
 
