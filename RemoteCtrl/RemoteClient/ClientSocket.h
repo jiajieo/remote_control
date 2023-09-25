@@ -1,19 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
-
-typedef struct fileinfo {//结构体默认是public,类默认是private.
-	fileinfo() {
-		IsInvalid = FALSE;//默认是有效的
-		IsDirectory = -1;
-		IsHasNext = TRUE;//默认是有后续的
-		memset(szFileName, 0, sizeof(szFileName));
-	}
-	BOOL IsInvalid;//判断该目录是否无效
-	BOOL IsDirectory;//判断是目录(文件夹)还是文件 0:文件 1:目录
-	BOOL IsHasNext;//文件是否还有后续 1:是 0:否
-	char szFileName[256];//文件名
-}FILEINFO, * PFILEINFO;
+#include "Tool.h"
 
 #pragma pack(push)
 #pragma pack(1)
@@ -99,11 +87,11 @@ public:
 		return *this;
 	}
 
-	int Size() {//数据包的长度
+	int Size() const{//数据包的长度
 		return nLength + 2 + 4;
 	}
 
-	const char* Data() {//将整个数据包的数据转成字符串型，方便查看读取。
+	const char* Data(std::string& strOut) const{//将整个数据包的数据转成字符串型，方便查看读取。
 		strOut.resize(Size());//将strOut字符串大小指定为整个数据包的长度
 		BYTE* pData = (BYTE*)strOut.c_str();//定义一个BYTE数据类型的指针指向整个包的数据字符串
 		*(WORD*)pData = sHead; pData += 2;
@@ -120,21 +108,10 @@ public://包数据是外部需要调用到的，所以这里用public
 	WORD sCmd;//命令
 	std::string strData;//包数据
 	WORD sSum;//和校验 将包数据进行加求和
-	std::string strOut;//整个包的数据，方便查看
+	//std::string strOut;//整个包的数据，方便查看
 };
 #pragma pack(pop)
 
-typedef struct mouseev {
-	mouseev() {//初始化
-		nAction = 0;
-		nButton = 0;
-		ptXY.x = 0;
-		ptXY.y = 0;
-	}
-	WORD nAction;//首先是描述动作的:点击(单击、双击)、移动
-	WORD nButton;//左键、右键、中键
-	POINT ptXY;//坐标
-}MOUSEEV, * PMOUSEEV;
 
 std::string GetError(int a);//a:WSAGetLastError() 函数的参数一定不能写宏定义的。
 
@@ -149,7 +126,7 @@ public:
 		return m_instance;
 	}
 
-	bool InitSocket(DWORD nIP, int port) {//套接字创建及监听
+	bool InitSocket() {//套接字创建及监听
 		//1 创建套接字
 		if (m_sockCli != INVALID_SOCKET) {
 			closesocket(m_sockCli);
@@ -163,9 +140,9 @@ public:
 		//2 connect
 		SOCKADDR_IN addrCli;
 		memset(&addrCli, 0, sizeof(addrCli));//定义的结构体要清空
-		addrCli.sin_addr.S_un.S_addr = htonl(nIP);//用来保存客户端IP地址信息; inet_addr("")是将IP地址的字符串转换为 IP地址结构体的正确地址; htonl()从整型变量转换到IP地址结构体; ntohl()IP地址结构体转换成整形变量
+		addrCli.sin_addr.S_un.S_addr = htonl(m_nIP);//用来保存客户端IP地址信息; inet_addr("")是将IP地址的字符串转换为 IP地址结构体的正确地址; htonl()从整型变量转换到IP地址结构体; ntohl()IP地址结构体转换成整形变量
 		addrCli.sin_family = AF_INET;//传输的地址族,IP类型
-		addrCli.sin_port = htons(port);//用来保存端口号
+		addrCli.sin_port = htons(m_port);//用来保存端口号
 		if (addrCli.sin_addr.s_addr == INADDR_NONE) {//INADDR_NONE 指IP地址不合法或为空
 			AfxMessageBox("指定的IP地址不存在！");
 			return false;
@@ -216,9 +193,10 @@ public:
 		if (m_sockCli == INVALID_SOCKET)return false;
 		return send(m_sockCli, pData, nSize, 0) > 0;
 	}
-	bool Send(CPacket& pack) {//函数重载 加一个可以发送数据包的Send函数
+	bool Send(const CPacket& pack) {//函数重载 加一个可以发送数据包的Send函数
 		if (m_sockCli == INVALID_SOCKET)return false;
-		return send(m_sockCli, pack.Data(), pack.Size(), 0) > 0;//将CPacket类转成const char*型(const char*)&pack
+		std::string strOut;
+		return send(m_sockCli, pack.Data(strOut), pack.Size(), 0) > 0;//将CPacket类转成const char*型(const char*)&pack
 	}
 
 	bool GetFilePath(std::string& strPath) {//获取控制端想要访问的路径
@@ -245,21 +223,40 @@ public:
 		closesocket(m_sockCli);
 		m_sockCli = INVALID_SOCKET;
 	}
+	//刷新IP地址和端口号
+	void UpdataAddress(const DWORD nIP,const int port) {
+		m_nIP = nIP;
+		m_port = port;
+	}
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
+	//单例其实就不需要复制构造函数了。
 	CClientSocket& operator = (const CClientSocket& ss) {
-		m_sockCli = ss.m_sockCli;
+		if (this != &ss) {
+			m_nIP = ss.m_nIP;
+			m_port = ss.m_port;
+			memcpy(&m_pack, &ss.m_pack, sizeof(CPacket));
+			m_sockCli = ss.m_sockCli;
+		}
+		else {
+			return *this;
+		}
 	}
 	CClientSocket(const CClientSocket& ss) {
+		m_nIP = ss.m_nIP;
+		m_port = ss.m_port;
+		memcpy(&m_pack, &ss.m_pack, sizeof(CPacket));
 		m_sockCli = ss.m_sockCli;
 	}
-	CClientSocket() {
+	CClientSocket():m_nIP(INADDR_ANY),m_port(0) {//无效IP、无效端口
 		m_sockCli = INVALID_SOCKET;
+		m_buffer.resize(BUFFER_SIZE);//为该动态数组设定新的内存大小
+
 		if (WSAServerInit() == FALSE) {
 			MessageBox(NULL, _T("无法初始化网络套接字库"), _T("套接字初始化错误"), MB_OK | MB_ICONERROR);
 			exit(0);//关闭所有文件，终止正在执行的进程
 		}
-		m_buffer.resize(BUFFER_SIZE);//为该动态数组设定新的内存大小
+		
 	}
 	~CClientSocket() {
 		closesocket(m_sockCli);
@@ -302,6 +299,10 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 	};
 
 private://成员变量是需要依赖这个类的实现的，是组合关系；但如果是指针就会从组合关系降为依赖关系
+	//对IP和端口号的存放
+	int m_port;
+	DWORD m_nIP;
+
 	std::vector<char> m_buffer;
 	static CClientSocket* m_instance;//这里因为是类里的静态函数要访问的实例，所以要设为静态的
 	static CHelper m_helper;

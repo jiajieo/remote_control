@@ -8,6 +8,7 @@
 #include "RemoteClient.h"
 #include "RemoteClientDlg.h"
 #include "afxdialogex.h"
+#include "ClientControler.h"
 
 
 
@@ -52,7 +53,6 @@ END_MESSAGE_MAP()
 // CRemoteClientDlg 对话框
 
 
-
 CRemoteClientDlg::CRemoteClientDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_REMOTECLIENT_DIALOG, pParent)
 	, m_servaddress(0)
@@ -85,6 +85,8 @@ BEGIN_MESSAGE_MAP(CRemoteClientDlg, CDialogEx)
 	ON_MESSAGE(WM_SEND_PACKET, &CRemoteClientDlg::OnSendPacket)
 	ON_BN_CLICKED(IDC_BTN_START_WATCH, &CRemoteClientDlg::OnBnClickedBtnStartWatch)
 	ON_WM_TIMER()
+	ON_NOTIFY(IPN_FIELDCHANGED, IDC_IPADDRESS, &CRemoteClientDlg::OnIpnFieldchangedIpaddress)
+	ON_EN_CHANGE(IDC_EDIT_PORT, &CRemoteClientDlg::OnEnChangeEditPort)
 END_MESSAGE_MAP()
 
 
@@ -120,9 +122,12 @@ BOOL CRemoteClientDlg::OnInitDialog()//创建对话框时，该函数就会被�
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO: 在此添加额外的初始化代码
+
 	UpdateData();//将控件的值赋给成员变量
-	m_servaddress = 0xC0A89480;//127.0.0.1->192.168.148.128
+	m_servaddress = 0x7F000001;//127.0.0.1->192.168.148.128
 	m_port = "6000";
+	int port = atoi(m_port);
+	CClientControler::getInstance()->UpdataAddress(m_servaddress, port);
 	UpdateData(FALSE);//将成员变量的值赋给控件
 
 	m_status.Create(IDD_DLG_STATUS, this);
@@ -188,7 +193,7 @@ void CRemoteClientDlg::OnBnClickedBtnConnect()//连接测试
 {
 	// TODO: 在此添加控件通知处理程序代码
 	SendPacket(1981);
-	if (m_hSocket->Getpacket().sCmd == 1981)
+	if (CClientControler::getInstance()->Getpacket().sCmd == 1981)
 		MessageBox("连接成功");
 }
 
@@ -197,7 +202,7 @@ void CRemoteClientDlg::OnBnClickedBtnViewfile()//查看文件
 {
 	// TODO: 在此添加控件通知处理程序代码
 	SendPacket(1);
-	std::string drivers = m_hSocket->Getpacket().strData;
+	std::string drivers = CClientControler::getInstance()->Getpacket().strData;
 	std::string dr;
 	TRACE("drivers.c_str():%s\n", drivers.c_str());
 	m_tree.DeleteAllItems();//删除树视图控件的所有项
@@ -217,21 +222,7 @@ void CRemoteClientDlg::OnBnClickedBtnViewfile()//查看文件
 
 int CRemoteClientDlg::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAutoClose)//发送命令 
 {
-	UpdateData();//检索控件中的数据，把控件的值赋给成员变量；FALSE将成员变量的值赋给控件
-	int port = atoi(m_port);//将字符串转换为整数
-	int ret;
-	m_hSocket = CClientSocket::getInstance();
-	if (m_hSocket != NULL) {
-		if (m_hSocket->InitSocket(m_servaddress, port) == true) {
-			CPacket pack(nCmd, (const char*)pData, nSize);
-			if (!m_hSocket->Send(pack))
-				return -1;
-			ret = m_hSocket->Recv();
-			if (bAutoClose)//bAutoClose默认为TRUE
-				m_hSocket->CloseSocket();
-		}
-	}
-	return ret;
+	return 	CClientControler::getInstance()->SendPacket(nCmd, pData, nSize, bAutoClose);
 }
 
 CString CRemoteClientDlg::GetPath(HTREEITEM hTree) {//获取树控件路径
@@ -273,15 +264,15 @@ void CRemoteClientDlg::LoadFileInfo()
 	m_List.DeleteAllItems();//删除列表控件所有项
 	CString strPath = GetPath(hTreeSelected);//获取树控件路径
 	SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false);
-	PFILEINFO tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
+	PFILEINFO tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();
 	int count = 0;
 	while (tempfile->IsHasNext) {//判断文件是否有后续
 		TRACE("[%s] IsDirectory:%d\r\n", tempfile->szFileName, tempfile->IsDirectory);
 		if (tempfile->IsDirectory) {//目录
 			if (CString(tempfile->szFileName) == "." || CString(tempfile->szFileName) == "..") {
-				int ret = m_hSocket->Recv();
+				int ret = CClientControler::getInstance()->Recv();
 				if (ret != 2)break;
-				tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
+				tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();
 				continue;
 			}
 			else {//正常的目录
@@ -292,13 +283,13 @@ void CRemoteClientDlg::LoadFileInfo()
 		else {//文件
 			m_List.InsertItem(0, tempfile->szFileName);//在列表视图控件中插入新项。第一个参数0：在列表第一行插入一行；-1：在列表末尾插入一行
 		}
-		int ret = m_hSocket->Recv();
+		int ret = CClientControler::getInstance()->Recv();
 		if (ret != 2)break;
-		tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();//可以从const char* 强制转换为结构体的指针FILEINFO*.
+		tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();//可以从const char* 强制转换为结构体的指针FILEINFO*.
 		count++;
 	}
 	TRACE("%s路径下有%d个文件！\n", strPath, count);
-	m_hSocket->CloseSocket();
+	CClientControler::getInstance()->CloseSocket();
 }
 
 void CRemoteClientDlg::LoadFileCurrent()
@@ -314,15 +305,15 @@ void CRemoteClientDlg::LoadFileCurrent()
 	m_List.DeleteAllItems();//删除列表控件所有项
 	CString strPath = GetPath(hTreeSelected);//获取树控件路径
 	SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false);
-	PFILEINFO tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
+	PFILEINFO tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();
 	int count = 0;
 	while (tempfile->IsHasNext) {//判断文件是否有后续
 		TRACE("[%s] IsDirectory:%d\r\n", tempfile->szFileName, tempfile->IsDirectory);
 		if (tempfile->IsDirectory) {//目录
 			if (CString(tempfile->szFileName) == "." || CString(tempfile->szFileName) == "..") {
-				int ret = m_hSocket->Recv();
+				int ret = CClientControler::getInstance()->Recv();
 				if (ret != 2)break;
-				tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();
+				tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();
 				continue;
 			}
 			else {//正常的目录
@@ -333,135 +324,56 @@ void CRemoteClientDlg::LoadFileCurrent()
 		else {//文件
 			m_List.InsertItem(0, tempfile->szFileName);//在列表视图控件中插入新项。第一个参数0：在列表第一行插入一行；-1：在列表末尾插入一行
 		}
-		int ret = m_hSocket->Recv();
+		int ret = CClientControler::getInstance()->Recv();
 		if (ret != 2)break;
-		tempfile = (PFILEINFO)m_hSocket->Getpacket().strData.c_str();//可以从const char* 强制转换为结构体的指针FILEINFO*.
+		tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();//可以从const char* 强制转换为结构体的指针FILEINFO*.
 		count++;
 	}
 	TRACE("%s路径下有%d个文件！\n", strPath, count);
-	m_hSocket->CloseSocket();
+	CClientControler::getInstance()->CloseSocket();
 }
 
-unsigned __stdcall CRemoteClientDlg::threadEntryForDownFile(void* arg)
-{
-	CRemoteClientDlg* thiz = (CRemoteClientDlg*)arg;
-	thiz->threadDownFile();
-	_endthreadex(0);//终止线程
-	return 0;
-}
 
-void CRemoteClientDlg::threadDownFile()//不能只将一部分放在线程里，外部还有循环
-{
-	int nListSelected = m_List.GetSelectionMark();//检索列表视图控件的选择标记,返回标记的记号，从0开始
-	CString ListText = m_List.GetItemText(nListSelected, 0);//定位到列表视图的行和列，从0开始
 
-	//先选择下载路径，在开始下载传输
-	CFileDialog dlg(FALSE, "*", ListText.GetString(), OFN_OVERWRITEPROMPT | OFN_HIDEREADONLY, NULL, this);//构造标准Windows文件对话框，倒数第二项文件筛选器为空，因为可以下载任意文件，不需要筛选
-	if (IDOK == dlg.DoModal()) {//显示文件对话框
-		//要在发送传输之前创建文件
-		m_status.m_info.SetWindowText("DownLoading...");
-		//m_status.SetActiveWindow();//激活窗口
-		m_status.CenterWindow(this);//使窗口相对于其父级居中
-		m_status.ShowWindow(SW_SHOW);
-		FILE* pFile = fopen(dlg.GetPathName(), "wb+");//因为使用二进制方式读取的，文本可以通过二进制方式写入，dlg.GetPathName()文件的完整路径
-		if (pFile == NULL) {
-			AfxMessageBox("文件创建失败");
-			m_status.ShowWindow(SW_HIDE);//下载失败要将对话框销毁掉
-			EndWaitCursor();//从沙漏光标返回上一个光标
-			return;
-		}
-		HTREEITEM hSelected = m_tree.GetSelectedItem();//检索树视图控件的当前选定项
-		CString FileDown = GetPath(hSelected) + ListText;
-		TRACE("FileDown=%s\n", (LPCSTR)FileDown);
-		do {//该循环只会执行一次，方便出错直接退出循环
-			//int ret = SendPacket(4, (BYTE*)(LPCSTR)FileDown, FileDown.GetLength(), FALSE);//SendPacket这个函数是外部的线程不能随便用
-			//int ret = OnSendPacket(4 << 1 | 0, (LPARAM)(LPCSTR)FileDown);
-			int ret = SendMessage(WM_SEND_PACKET, 4 << 1 | 0, (LPARAM)(LPCSTR)FileDown);//将制定消息发送到一个或多个窗口
-			if (ret < 0) {
-				AfxMessageBox("下载失败");
-				break;
-			}
-			//文件大小
-			long long data = *(long long*)m_hSocket->Getpacket().strData.c_str();//将字符串转换成long long整型
-			if (data == 0) {
-				AfxMessageBox("文件长度为0，无法读取文件!");
-				break;
-			}
 
-			long long nCount = 0;
-			while (nCount < data) {
-				int ret = m_hSocket->Recv();
-				if (ret < 0) {
-					AfxMessageBox("传输失败");
-					break;
-				}
-				size_t len = fwrite(m_hSocket->Getpacket().strData.c_str(), 1, m_hSocket->Getpacket().strData.size(), pFile);
-				nCount += len;
-			}
-			TRACE("接收到文件大小:%d\n", nCount);
-			if (nCount == data)
-				AfxMessageBox("下载成功!", MB_SETFOREGROUND);
-		} while (false);
-		fclose(pFile);
-		m_hSocket->CloseSocket();
-	}
-	m_status.ShowWindow(SW_HIDE);
-	EndWaitCursor();//从沙漏光标返回上一个光标
-}
+//unsigned __stdcall CRemoteClientDlg::threadEntryWatchData(void* arg)
+//{
+//	CRemoteClientDlg* thiz = (CRemoteClientDlg*)arg;
+//	thiz->threadWatchData();
+//	//_endthreadex(0);//终止线程
+//	return 0;
+//}
 
-unsigned __stdcall CRemoteClientDlg::threadEntryWatchData(void* arg)
-{
-	CRemoteClientDlg* thiz = (CRemoteClientDlg*)arg;
-	thiz->threadWatchData();
-	//_endthreadex(0);//终止线程
-	return 0;
-}
-
-void CRemoteClientDlg::threadWatchData()
-{
-	Sleep(50);
-	//ULONGLONG ret = GetTickCount64();//检索自启动以来经过的毫秒数
-	while (m_isClosed == false) {//不关闭对话框
-		//if (GetTickCount64() - ret < 50) { //这里是每过50ms在接收数据
-		//	Sleep(50 + ret - GetTickCount64());
-		//	//Sleep(GetTickCount64() - ret);
-		//	ret = GetTickCount64();
-		//}
-		
-		//int ret = SendPacket(6, NULL, 0);
-		if (m_isFull == false) {//将判断是否有缓存放到接受数据之前，防止有缓存未处理接收下一数据，导致等待时间过长出现卡顿。
-			BYTE* Data = NULL;
-			int ret = SendMessage(WM_SEND_PACKET, 6 << 1 | 1, (LPARAM)Data);
-			if (ret == 6) {//更新数据到缓存器
-				
-				BYTE* pData = (BYTE*)m_hSocket->Getpacket().strData.c_str();
-				//存入CImage
-				IStream* pStream = NULL;//创建一个流
-				HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, 0);//从堆中分配指定的字节数，GMEM_MOVEABLE分配可移动内存
-				if (hMem == NULL) {
-					TRACE("分配移动内存失败errno=%d\n", GetLastError());
-					Sleep(1);//要等待一下，防止出现死循环
-					continue;
-				}
-				HRESULT ret = CreateStreamOnHGlobal(hMem, TRUE, &pStream);//创建一个流对象，用HGLOBAL句柄来存储流内容
-				if (ret == S_OK) {//函数执行成功
-					ULONG length = 0;
-					pStream->Write(pData, m_hSocket->Getpacket().strData.size(), &length);//数据从缓存区中写入指定的流。
-					LARGE_INTEGER bg = { 0 };
-					pStream->Seek(bg, STREAM_SEEK_SET, NULL);//查找指针更改为新位置
-					if (m_image != NULL)
-						m_image.Destroy();
-					m_image.Load(pStream);//加载图像
-					m_isFull = true;
-				}
-			}
-			else
-				Sleep(1);
-		}//如果还有缓存，就啥也不干，等待无缓存再接受数据，就不需要等待50ms了
-		else
-			Sleep(1);
-	}
-}
+//void CRemoteClientDlg::threadWatchData()
+//{
+//	Sleep(50);
+//	//ULONGLONG ret = GetTickCount64();//检索自启动以来经过的毫秒数
+//	while (m_isClosed == false) {//不关闭对话框
+//		//if (GetTickCount64() - ret < 50) { //这里是每过50ms在接收数据
+//		//	Sleep(50 + ret - GetTickCount64());
+//		//	//Sleep(GetTickCount64() - ret);
+//		//	ret = GetTickCount64();
+//		//}
+//
+//		//int ret = SendPacket(6, NULL, 0);
+//		if (CClientControler::getInstance()->GetIsFull() == false) {//将判断是否有缓存放到接受数据之前，防止有缓存未处理接收下一数据，导致等待时间过长出现卡顿。
+//			BYTE* Data = NULL;
+//			//int ret = SendMessage(WM_SEND_PACKET, 6 << 1 | 1, (LPARAM)Data);
+//			int ret = SendPacket(6, NULL, NULL);
+//			if (ret == 6) {//更新数据到缓存器
+//				if (CClientControler::getInstance()->ConverImage() == FALSE) {//将收到的数据转换为CImage图像缓存
+//					TRACE("获取图片失败!\r\n");
+//					continue;
+//				}
+//				CClientControler::getInstance()->GetIsFull() = true;
+//			}
+//			else
+//				Sleep(1);
+//		}//如果还有缓存，就啥也不干，等待无缓存再接受数据，就不需要等待50ms了
+//		else
+//			Sleep(1);
+//	}
+//}
 
 void CRemoteClientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树形控件左键双击事件
 {
@@ -500,14 +412,14 @@ void CRemoteClientDlg::OnNMRClickListFile(NMHDR* pNMHDR, LRESULT* pResult)//列�
 
 void CRemoteClientDlg::OnDownloadFile()
 {
-	//添加线程函数处理大文件的下载
-	unsigned thraddr;
-	BeginWaitCursor();//将光标显示为沙漏光标，向用户显示正处于繁忙状态，通常表示等待，计算机正在处理数据
-	_beginthreadex(NULL, 0, CRemoteClientDlg::threadEntryForDownFile, this, 0, &thraddr);//这里threadDownFile 线程函数要定义为静态的，否则访问不了
+	int nListSelected = m_List.GetSelectionMark();//检索列表视图控件的选择标记,返回标记的记号，从0开始
+	CString ListText = m_List.GetItemText(nListSelected, 0);//定位到列表视图的行和列，从0开始
+	HTREEITEM hSelected = m_tree.GetSelectedItem();//检索树视图控件的当前选定项
+	CString FileDown = GetPath(hSelected) + ListText;//下载路径
 
-	Sleep(50);//等待50ms开启一个线程
-	//TODO: 大文件传输需要额外处理
-
+	//BeginWaitCursor();//将光标显示为沙漏光标，向用户显示正处于繁忙状态，通常表示等待，计算机正在处理数据
+	CClientControler::getInstance()->DownLoadFile(ListText, FileDown);
+	//EndWaitCursor();//从沙漏光标返回上一个光标
 }
 
 
@@ -519,7 +431,7 @@ void CRemoteClientDlg::OnDeleteFile()//删除文件
 	HTREEITEM hSelected = m_tree.GetSelectedItem();
 	CString FileDel = GetPath(hSelected) + ListTect;
 	SendPacket(7, (BYTE*)(LPCSTR)FileDel, FileDel.GetLength());
-	AfxMessageBox(m_hSocket->Getpacket().strData.c_str());
+	AfxMessageBox(CClientControler::getInstance()->Getpacket().strData.c_str());
 	LoadFileCurrent();//刷新一下目录下的文件
 }
 
@@ -537,7 +449,7 @@ void CRemoteClientDlg::OnOpenFile()//打开文件
 LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)// WPARAM 和 LPARAM 各占4字节
 {
 	CString strPath = (LPCSTR)lParam;//LPCSTR 用于传递指向以NULL字符结尾的常量字符串的指针参数；LPCTSTR 和LPCSTR 是在Unicode字符集(宽字符集)环境下传递宽字符字符串参数。
-	int ret = SendPacket(wParam >> 1, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), wParam & 1);
+	int ret = SendPacket(wParam >> 1, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), wParam & 1);//0是0000 0000,1是0000 0001别搞错了
 	return ret;
 }
 
@@ -545,17 +457,19 @@ LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)// WPARAM �
 void CRemoteClientDlg::OnBnClickedBtnStartWatch()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	m_isClosed = false;
+	//m_isClosed = false;
+	CClientControler::getInstance()->StartWatch();
+	
 
-	unsigned thraddr;
-	CWatchDialog dlg;
-	HANDLE hThread=(HANDLE)_beginthreadex(NULL, 0, CRemoteClientDlg::threadEntryWatchData, this, 0, &thraddr);
-	//此时因为监控对话框定义的是模态的，所以不用担心狂点远程监控按钮的问题
-	//GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);//EnableWindow 启用或禁用鼠标和键盘输入，TRUE:启用 FALSE:禁用 防止狂点
+	//unsigned thraddr;
+	//CWatchDialog dlg;
+	//HANDLE hThread = (HANDLE)_beginthreadex(NULL, 0, CRemoteClientDlg::threadEntryWatchData, this, 0, &thraddr);
+	////此时因为监控对话框定义的是模态的，所以不用担心狂点远程监控按钮的问题
+	////GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);//EnableWindow 启用或禁用鼠标和键盘输入，TRUE:启用 FALSE:禁用 防止狂点
 
-	dlg.DoModal();//将监控对话框设为模态对话框
-	WaitForSingleObject(hThread, 500);//监控对话框关闭后等待500ms关闭线程
-	m_isClosed = true;
+	//dlg.DoModal();//将监控对话框设为模态对话框
+	//WaitForSingleObject(hThread, 500);//监控对话框关闭后等待500ms关闭线程
+	//m_isClosed = true;
 }
 
 
@@ -564,4 +478,29 @@ void CRemoteClientDlg::OnTimer(UINT_PTR nIDEvent)
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
 
 	CDialogEx::OnTimer(nIDEvent);
+}
+
+
+void CRemoteClientDlg::OnIpnFieldchangedIpaddress(NMHDR* pNMHDR, LRESULT* pResult)//IP
+{
+	LPNMIPADDRESS pIPAddr = reinterpret_cast<LPNMIPADDRESS>(pNMHDR);
+	// TODO: 在此添加控件通知处理程序代码
+	UpdateData();
+	int port = atoi(m_port);
+	CClientControler::getInstance()->UpdataAddress(m_servaddress, port);
+	*pResult = 0;
+}
+
+
+void CRemoteClientDlg::OnEnChangeEditPort()//端口
+{
+	// TODO:  如果该控件是 RICHEDIT 控件，它将不
+	// 发送此通知，除非重写 CDialogEx::OnInitDialog()
+	// 函数并调用 CRichEditCtrl().SetEventMask()，
+	// 同时将 ENM_CHANGE 标志“或”运算到掩码中。
+
+	// TODO:  在此添加控件通知处理程序代码
+	UpdateData();//检索控件中的数据，把控件的值赋给成员变量；FALSE将成员变量的值赋给控件
+	int port = atoi(m_port);//将字符串转换为整数
+	CClientControler::getInstance()->UpdataAddress(m_servaddress, port);
 }

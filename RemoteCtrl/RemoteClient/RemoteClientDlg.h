@@ -60,25 +60,26 @@ private:
 	void DeleteTreeChild(HTREEITEM hTreeSelected);
 	void LoadFileInfo();//查看目录信息处理
 	void LoadFileCurrent();//刷新目录下的文件
-	static unsigned __stdcall threadEntryForDownFile(void* arg);//文件下载线程，在类中添加线程要将线程函数定义为静态的
-	void threadDownFile();//文件下载线程
+	//static unsigned __stdcall threadEntryForDownFile(void* arg);//文件下载线程，在类中添加线程要将线程函数定义为静态的
+	//void threadDownFile();//文件下载线程
 	//屏幕监控
-	static unsigned __stdcall threadEntryWatchData(void* arg);//静态函数不能使用this指针
-	void threadWatchData();
+	//static unsigned __stdcall threadEntryWatchData(void* arg);//静态函数不能使用this指针
+	//void threadWatchData();
 
 public://获取成员变量
-	bool GetIsFull() const{//该成员函数是一个常量成员函数，不会修改类里的成员变量
-		return m_isFull;
-	}
-	CImage& GetImage(){//这里是将m_image拿到外部用一下，所以用引用，可能会修改m_image变量的值，所以不能加const
-		return m_image;
-	}
-	void SetNoImage(bool isfull = false) {//设为无缓存
-		m_isFull = isfull;
-	}
+	//bool GetIsFull() const{//该成员函数是一个常量成员函数，不会修改类里的成员变量
+	//	return m_isFull;
+	//}
+	//CImage& GetImage(){//这里是将m_image拿到外部用一下，所以用引用，可能会修改m_image变量的值，所以不能加const
+	//	return m_image;
+	//}
+	//void SetNoImage(bool isfull = false) {//设为无缓存
+	//	m_isFull = isfull;
+	//}
 
 private:
-	CClientSocket* m_hSocket;//防止多个线程同时用到这个数据，所以将它定义为局部变量
+	//CClientControler* pControler;//控制接口
+	//CClientSocket* m_hSocket;//防止多个线程同时用到这个数据，所以将它定义为局部变量
 	CStatusDlg m_status;
 	CImage m_image;//缓存，提供了增强的位图支持，能够加载和保存JPEG、GIF、BMP的图像。
 	bool m_isFull;//是否有缓存,false无缓存,true有缓存 初始化为无缓存
@@ -98,4 +99,6 @@ public:
 	afx_msg LRESULT OnSendPacket(WPARAM wParam, LPARAM lParam);//定义消息处理函数
 	afx_msg void OnBnClickedBtnStartWatch();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	afx_msg void OnIpnFieldchangedIpaddress(NMHDR* pNMHDR, LRESULT* pResult);
+	afx_msg void OnEnChangeEditPort();
 };

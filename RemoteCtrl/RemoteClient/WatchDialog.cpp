@@ -6,6 +6,7 @@
 #include "afxdialogex.h"
 #include "WatchDialog.h"
 #include "RemoteClientDlg.h"
+#include "ClientControler.h"
 
 
 // CWatchDialog 对话框
@@ -64,24 +65,23 @@ void CWatchDialog::OnTimer(UINT_PTR nIDEvent)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
 	if (nIDEvent == 0) {
-		CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();//GetParent()获取父窗口的指针
-		if (pParent->GetIsFull() == true) {//如果有缓存
+		if (CClientControler::getInstance()->GetIsFull() == true) {//如果有缓存
 			//TODO: 显示图片
 			CRect rect;
 			m_picture.GetWindowRect(rect);//获取对话框屏幕坐标
-			pParent->GetImage().StretchBlt(m_picture.GetDC()->GetSafeHdc(), 0, 0, rect.Width(), rect.Height(), SRCCOPY);//将位图从源设备上下文复制到当前设备上下文
+			CClientControler::getInstance()->GetImage().StretchBlt(m_picture.GetDC()->GetSafeHdc(), 0, 0, rect.Width(), rect.Height(), SRCCOPY);//将位图从源设备上下文复制到当前设备上下文
 			//pParent->GetImage().BitBlt(m_picture.GetDC()->GetSafeHdc(),0,0,SRCCOPY);
 			//BitBlt()将位图从源设备上下文复制到当前设备上下文；GetDC()检索指向工作区的设备上下文；GetSafeHdc()获取设备上下文的句柄m_hDC
 			//m_picture.InvalidateRect(NULL);//重绘，将给定矩形添加到更新区域 这里不需要
 
 			//远程端屏幕大小
 			if (m_width == -1 || m_height == -1) {
-				m_width = pParent->GetImage().GetWidth();
-				m_height = pParent->GetImage().GetHeight();
+				m_width = CClientControler::getInstance()->GetImage().GetWidth();
+				m_height = CClientControler::getInstance()->GetImage().GetHeight();
 			}
 
-			pParent->GetImage().Destroy();//分离位图并销毁位图
-			pParent->SetNoImage();//设为无缓存 m_isFull=false
+			CClientControler::getInstance()->GetImage().Destroy();//分离位图并销毁位图
+			CClientControler::getInstance()->SetNoImage();//设为无缓存 m_isFull=false
 		}
 	}
 
@@ -127,8 +127,7 @@ void CWatchDialog::OnLButtonDblClk(UINT nFlags, CPoint point)
 	mouse.nAction = 1;
 	mouse.nButton = 0;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 	CDialog::OnLButtonDblClk(nFlags, point);
 }
 
@@ -144,8 +143,7 @@ void CWatchDialog::OnLButtonDown(UINT nFlags, CPoint point)
 	mouse.nAction = 2;
 	mouse.nButton = 0;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 	CDialog::OnLButtonDown(nFlags, point);
 }
 
@@ -158,8 +156,7 @@ void CWatchDialog::OnRButtonDblClk(UINT nFlags, CPoint point)
 	mouse.nAction = 1;
 	mouse.nButton = 1;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 	CDialog::OnRButtonDblClk(nFlags, point);
 }
 
@@ -172,8 +169,7 @@ void CWatchDialog::OnRButtonDown(UINT nFlags, CPoint point)
 	mouse.nAction = 2;
 	mouse.nButton = 1;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 	CDialog::OnRButtonDown(nFlags, point);
 }
 
@@ -186,8 +182,7 @@ void CWatchDialog::OnLButtonUp(UINT nFlags, CPoint point)
 	mouse.nAction = 4;
 	mouse.nButton = 0;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 	CDialog::OnLButtonUp(nFlags, point);
 }
 
@@ -200,8 +195,7 @@ void CWatchDialog::OnRButtonUp(UINT nFlags, CPoint point)
 	mouse.nAction = 4;
 	mouse.nButton = 1;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 	CDialog::OnRButtonUp(nFlags, point);
 }
 
@@ -214,8 +208,8 @@ void CWatchDialog::OnMouseMove(UINT nFlags, CPoint point)
 	mouse.nAction = 5;
 	mouse.nButton = 3;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();//TODO:使用SendMessage发送消息时存在一个设计隐患，网络通信和对话框有耦合
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	//TODO:使用SendMessage发送消息时存在一个设计隐患，网络通信和对话框有耦合
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 	CDialog::OnMouseMove(nFlags, point);
 }
 
@@ -228,8 +222,7 @@ void CWatchDialog::OnMButtonDown(UINT nFlags, CPoint point)
 	mouse.nAction = 2;
 	mouse.nButton = 2;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 	CDialog::OnMButtonDown(nFlags, point);
 }
 
@@ -242,8 +235,7 @@ void CWatchDialog::OnMButtonUp(UINT nFlags, CPoint point)
 	mouse.nAction = 4;
 	mouse.nButton = 2;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 	CDialog::OnMButtonUp(nFlags, point);
 }
 
@@ -256,8 +248,7 @@ void CWatchDialog::OnMButtonDblClk(UINT nFlags, CPoint point)
 	mouse.nAction = 1;
 	mouse.nButton = 2;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 	CDialog::OnMButtonDblClk(nFlags, point);
 }
 
@@ -272,8 +263,7 @@ void CWatchDialog::OnStnClickedWatch()//只有将Picture Control（图片控件�
 	mouse.nAction = 0;
 	mouse.nButton = 0;
 	mouse.ptXY = remote;
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
-	pParent->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
 }
 
 
@@ -288,16 +278,15 @@ void CWatchDialog::OnOK()
 void CWatchDialog::OnBnClickedBtnLock()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	CRemoteClientDlg* pParent = (CRemoteClientDlg*)GetParent();
 	if (islock==false) {//没锁，点的是锁机
 		m_lock.SetWindowText("解锁");
 		islock = true;
 		
-		pParent->SendPacket(8, NULL, 0);
+		CClientControler::getInstance()->SendPacket(8, NULL, 0,FALSE);
 	}
 	else if (islock=true) {//锁了，点的是解锁
 		m_lock.SetWindowText("锁机");
 		islock = false;
-		pParent->SendPacket(9, NULL, 0);
+		CClientControler::getInstance()->SendPacket(9, NULL, 0,FALSE);
 	}
 }

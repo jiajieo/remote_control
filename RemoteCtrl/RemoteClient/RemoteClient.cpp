@@ -5,7 +5,7 @@
 #include "pch.h"
 #include "framework.h"
 #include "RemoteClient.h"
-#include "RemoteClientDlg.h"
+//#include "RemoteClientDlg.h"
 #include "ClientControler.h"
 
 #ifdef _DEBUG
@@ -79,6 +79,7 @@ BOOL CRemoteClientApp::InitInstance()
 	/*CRemoteClientDlg dlg;
 	m_pMainWnd = &dlg;
 	INT_PTR nResponse = dlg.DoModal();*/
+	
 	if (nResponse == IDOK)
 	{
 		// TODO: 在此放置处理何时用
