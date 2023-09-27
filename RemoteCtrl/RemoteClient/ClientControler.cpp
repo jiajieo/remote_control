@@ -174,14 +174,16 @@ void CClientControler::threadWatch()
 		//int ret = SendPacket(6, NULL, 0);
 		if (m_WatchDlg.GetIsFull() == false) {//无缓存时在进行数据的接收
 			BYTE* Data = NULL;
-			int ret = SendMessage(m_RemoteClientDlg, WM_SEND_PACKET, 6 << 1 | 1, (LPARAM)Data);
+			//int ret = SendMessage(m_RemoteClientDlg, WM_SEND_PACKET, 6 << 1 | 1, (LPARAM)Data);
+			std::list<CPacket> lstpack;
+			SendPacket(6, NULL, 0, TRUE, &lstpack);
 			/*CPacket pack(6, NULL, NULL);
 			MSG msg;
 			msg.message = WM_SEND_PACK;
 			msg.lParam = (LPARAM)&pack;*/
 			//int ret =SendPacket(6);
-			if (ret == 6) {//更新数据到缓存器
-				if (ConverImage() == FALSE) {//将收到的数据转换为CImage图像缓存
+			if (lstpack.front().sCmd == 6) {//更新数据到缓存器
+				if (ConverImage(lstpack.front()) == FALSE) {//将收到的数据转换为CImage图像缓存
 					TRACE("获取图片失败!\r\n");
 					continue;
 				}

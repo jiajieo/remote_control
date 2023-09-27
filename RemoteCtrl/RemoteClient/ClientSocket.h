@@ -21,7 +21,7 @@ public:
 		hEvent = pack.hEvent;
 	}
 	//打包数据
-	CPacket(WORD nCmd, const char* pData, size_t nSize, HANDLE hEvent) {
+	CPacket(WORD nCmd, const char* pData, size_t nSize, HANDLE hEvent=INVALID_HANDLE_VALUE) {
 		sHead = 0xFEFF;
 		nLength = nSize + 4;//+命令和校验是包长度
 		sCmd = nCmd;

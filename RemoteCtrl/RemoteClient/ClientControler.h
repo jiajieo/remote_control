@@ -34,6 +34,9 @@ public:
 	bool InitSocket() {
 		return CClientSocket::getInstance()->InitSocket();
 	}
+	void Send(CPacket& pack) {
+		CClientSocket::getInstance()->Send(pack);
+	}
 	int Recv() {
 		return CClientSocket::getInstance()->Recv();
 	}
@@ -61,10 +64,10 @@ public:
 	//1981 测试连接
 	int SendPacket(WORD nCmd, BYTE* pData = NULL, size_t nSize = 0, BOOL bAutoClose = TRUE,std::list<CPacket>* plstPack=NULL);//发送数据包，确保网络初始化连接正常  bAutoClose=TRUE 套接字自动关闭，表示短连接；否则表示长连接。 
 
-	BOOL ConverImage() {
-		CClientSocket* pClient = CClientSocket::getInstance();
+	BOOL ConverImage(CPacket& pack) {
+		//CClientSocket* pClient = CClientSocket::getInstance();
 		//存入CImage
-		return CTool::Byte2Image(pClient->Getpacket().strData, m_image);
+		return CTool::Byte2Image(pack.strData, m_image);
 	}
 
 	CImage& GetImage() {

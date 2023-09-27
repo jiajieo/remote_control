@@ -264,8 +264,12 @@ void CRemoteClientDlg::LoadFileInfo()
 	DeleteTreeChild(hTreeSelected);//删除树控键子项
 	m_List.DeleteAllItems();//删除列表控件所有项
 	CString strPath = GetPath(hTreeSelected);//获取树控件路径
-	;
-	PFILEINFO tempfile = (PFILEINFO)SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false).strData.c_str();
+	//PFILEINFO tempfile = (PFILEINFO)SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false).strData.c_str();
+	CPacket pack(2, strPath.GetBuffer(), strPath.GetLength());
+	CClientControler::getInstance()->InitSocket();
+	CClientControler::getInstance()->Send(pack);
+	CClientControler::getInstance()->Recv();
+	PFILEINFO tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();
 	int count = 0;
 	while (tempfile->IsHasNext) {//判断文件是否有后续
 		TRACE("[%s] IsDirectory:%d\r\n", tempfile->szFileName, tempfile->IsDirectory);
