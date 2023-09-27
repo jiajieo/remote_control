@@ -52,7 +52,8 @@ int CClientControler::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAut
 	//pClient->SendPacket(m_hEvent,bAutoClose);
 	int ret;
 	if (pClient->InitSocket() == true) {
-		pClient->Send(CPacket(nCmd, (char*)pData, nSize));
+		HANDLE m_hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+		pClient->Send(CPacket(nCmd, (char*)pData, nSize,m_hEvent));
 		ret = pClient->Recv();
 		if (bAutoClose) {
 			pClient->CloseSocket();

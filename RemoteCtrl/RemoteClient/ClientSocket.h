@@ -18,9 +18,10 @@ public:
 		sCmd = pack.sCmd;
 		strData = pack.strData;
 		sSum = pack.sSum;
+		hEvent = pack.hEvent;
 	}
 	//打包数据
-	CPacket(WORD nCmd, const char* pData, size_t nSize) {
+	CPacket(WORD nCmd, const char* pData, size_t nSize,HANDLE hEvent) {
 		sHead = 0xFEFF;
 		nLength = nSize + 4;//+命令和校验是包长度
 		sCmd = nCmd;
@@ -35,8 +36,9 @@ public:
 		for (size_t i = 0; i < strData.size(); i++) {
 			sSum += ((BYTE)strData[i] & 0xFF);
 		}
+		this->hEvent = hEvent;
 	}
-	CPacket(const BYTE* pData, size_t& nSize) {//方便解析数据，随便丢进来一个数据进行解析  BYTE:unsigned char BYTE 1字节
+	CPacket(const BYTE* pData, size_t& nSize) :hEvent(INVALID_HANDLE_VALUE){//方便解析数据，随便丢进来一个数据进行解析  BYTE:unsigned char BYTE 1字节
 		size_t i = 0;//字节长度跟踪
 		for (; i < nSize; i++) {
 			if (*(WORD*)(pData + i) == 0xFEFF) {//找到一个包头
@@ -85,6 +87,7 @@ public:
 			sCmd = pack.sCmd;
 			strData = pack.strData;
 			sSum = pack.sSum;
+			hEvent = pack.hEvent;
 		}
 		return *this;
 	}
@@ -111,6 +114,7 @@ public://包数据是外部需要调用到的，所以这里用public
 	std::string strData;//包数据
 	WORD sSum;//和校验 将包数据进行加求和
 	//std::string strOut;//整个包的数据，方便查看
+	HANDLE hEvent;
 };
 #pragma pack(pop)
 
@@ -232,7 +236,7 @@ public:
 	}
 
 	std::list<CPacket>& GetlistPack() {
-		return m_listPack;
+		return m_listSend;
 	}
 
 	//int SendPacket(HANDLE& hEvent, BOOL& bAutoClose) {
@@ -247,43 +251,52 @@ public:
 	//	return 0;
 	//}
 
-	/*static unsigned __stdcall threadSendPacket(void* arg) {
+	static unsigned __stdcall threadSendPacket(void* arg) {
 		CClientSocket* thiz = (CClientSocket*)arg;
 		thiz->threadFunc();
 		_endthreadex(0);
 		return 0;
-	}*/
+	}
 
-	//void threadFunc() {
-	//	//WaitForSingleObject(m_hEvent, INFINITE);
-	//	if (m_sockCli != INVALID_SOCKET) {
-	//		Send(m_listPack.front());
-	//		m_listPack.pop_front();
-	//		char buf[BUFFER_SIZE] = "";
-	//		int index = 0;
-	//		while (true) {
-	//			size_t len = recv(m_sockCli, buf + index, BUFFER_SIZE - index, 0);
-	//			if (len == SOCKET_ERROR || len == 0) {
-	//				TRACE("recv error=%d(%s)\n", WSAGetLastError(), GetError(WSAGetLastError()));
-	//				return;
-	//			}
-	//			len += index;
-	//			index = len;
-	//			CPacket pack((BYTE*)buf, len);
-	//			if (len > 0) {
-	//				memmove(buf, buf + len, index - len);
-	//				index = index - len;
-	//				m_listPack.push_back(pack);
-	//				SetEvent(m_hEvent);
-	//			}
-	//			else {
-	//				memset(buf, 0, sizeof(buf));
-	//				index = 0;
-	//			}
-	//		}
+	void threadFunc() {
+		//WaitForSingleObject(m_hEvent, INFINITE);
+		if (InitSocket() == false) return;
 
-	//	}
-	//}
+		char buf[BUFFER_SIZE] = "";
+		int index = 0;
+		while (m_sockCli!=INVALID_SOCKET) {
+			CPacket& head = m_listSend.front();
+			if (Send(head) == false) {
+				TRACE("发送失败\r\n");
+				continue;
+			}
+			auto pr=m_mapAck.insert(std::pair<HANDLE, std::list<CPacket>>(head.hEvent, std::list<CPacket>()));
+			size_t len = recv(m_sockCli, buf + index, BUFFER_SIZE - index, 0);
+			if (len == SOCKET_ERROR || len == 0) {
+				TRACE("recv error=%d(%s)\n", WSAGetLastError(), GetError(WSAGetLastError()));
+				CloseSocket();
+			}
+			len += index;
+			index = len;
+			CPacket pack((BYTE*)buf, len);
+			//std::list<CPacket>lstRecv;
+			if (len > 0) {
+				memmove(buf, buf + len, index - len);
+				index = index - len;
+				/*m_listPack.push_back(pack);*/
+				//pack.hEvent = head.hEvent;
+				pr.first->second.push_back(pack);
+				SetEvent(m_hEvent);
+			}
+			else {
+				memset(buf, 0, sizeof(buf));
+				index = 0;
+			}
+			m_listSend.pop_front();
+		}
+
+	}
+
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 	//单例其实就不需要复制构造函数了。
@@ -355,7 +368,8 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 	};
 
 private://成员变量是需要依赖这个类的实现的，是组合关系；但如果是指针就会从组合关系降为依赖关系
-	std::list<CPacket> m_listPack;
+	std::map<HANDLE, std::list<CPacket>> m_mapAck;
+	std::list<CPacket> m_listSend;
 	HANDLE m_hEvent;
 
 	//对IP和端口号的存放
