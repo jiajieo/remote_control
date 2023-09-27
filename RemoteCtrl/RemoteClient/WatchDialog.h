@@ -28,6 +28,16 @@ public:
 	int m_width;//被控端屏幕的宽
 	int m_height;//被控端屏幕的高
 	bool islock;//是否锁机
+	bool m_isFull;//判断CImage有无缓存
+
+public:
+	void SetNoImage(bool isfull = false) {//设为无缓存
+		m_isFull = isfull;
+	}
+
+	bool& GetIsFull() {
+		return m_isFull;
+	}
 
 private:
 	CPoint ConvertRemoteScreenPoint(CPoint& point,bool IsClientCoor=false);//将客户端坐标转换为远程端屏幕坐标

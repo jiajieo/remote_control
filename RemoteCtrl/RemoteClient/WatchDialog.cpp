@@ -17,6 +17,8 @@ CWatchDialog::CWatchDialog(CWnd* pParent /*=nullptr*/)
 {
 	m_width = -1;
 	m_height = -1;
+	islock = false;
+	m_isFull = false;
 }
 
 CWatchDialog::~CWatchDialog()
@@ -53,7 +55,7 @@ END_MESSAGE_MAP()
 BOOL CWatchDialog::OnInitDialog()
 {
 	CDialog::OnInitDialog();
-	islock = false;
+	
 	// TODO:  在此添加额外的初始化
 	SetTimer(0, 45, NULL);//安装系统计时器，第一个参数为0是该窗口的默认定时器，第二个参数指定时间间隔50ms
 	return TRUE;  // return TRUE unless you set the focus to a control
@@ -65,7 +67,7 @@ void CWatchDialog::OnTimer(UINT_PTR nIDEvent)
 {
 	// TODO: 在此添加消息处理程序代码和/或调用默认值
 	if (nIDEvent == 0) {
-		if (CClientControler::getInstance()->GetIsFull() == true) {//如果有缓存
+		if (m_isFull == true) {//如果有缓存
 			//TODO: 显示图片
 			CRect rect;
 			m_picture.GetWindowRect(rect);//获取对话框屏幕坐标
@@ -81,7 +83,7 @@ void CWatchDialog::OnTimer(UINT_PTR nIDEvent)
 			}
 
 			CClientControler::getInstance()->GetImage().Destroy();//分离位图并销毁位图
-			CClientControler::getInstance()->SetNoImage();//设为无缓存 m_isFull=false
+			SetNoImage();//设为无缓存 m_isFull=false
 		}
 	}
 

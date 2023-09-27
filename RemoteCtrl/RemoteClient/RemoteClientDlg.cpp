@@ -192,8 +192,7 @@ HCURSOR CRemoteClientDlg::OnQueryDragIcon()
 void CRemoteClientDlg::OnBnClickedBtnConnect()//连接测试
 {
 	// TODO: 在此添加控件通知处理程序代码
-	SendPacket(1981);
-	if (CClientControler::getInstance()->Getpacket().sCmd == 1981)
+	if (CClientControler::getInstance()->SendPacket(1981) == 1981)
 		MessageBox("连接成功");
 }
 
@@ -335,46 +334,6 @@ void CRemoteClientDlg::LoadFileCurrent()
 
 
 
-
-//unsigned __stdcall CRemoteClientDlg::threadEntryWatchData(void* arg)
-//{
-//	CRemoteClientDlg* thiz = (CRemoteClientDlg*)arg;
-//	thiz->threadWatchData();
-//	//_endthreadex(0);//终止线程
-//	return 0;
-//}
-
-//void CRemoteClientDlg::threadWatchData()
-//{
-//	Sleep(50);
-//	//ULONGLONG ret = GetTickCount64();//检索自启动以来经过的毫秒数
-//	while (m_isClosed == false) {//不关闭对话框
-//		//if (GetTickCount64() - ret < 50) { //这里是每过50ms在接收数据
-//		//	Sleep(50 + ret - GetTickCount64());
-//		//	//Sleep(GetTickCount64() - ret);
-//		//	ret = GetTickCount64();
-//		//}
-//
-//		//int ret = SendPacket(6, NULL, 0);
-//		if (CClientControler::getInstance()->GetIsFull() == false) {//将判断是否有缓存放到接受数据之前，防止有缓存未处理接收下一数据，导致等待时间过长出现卡顿。
-//			BYTE* Data = NULL;
-//			//int ret = SendMessage(WM_SEND_PACKET, 6 << 1 | 1, (LPARAM)Data);
-//			int ret = SendPacket(6, NULL, NULL);
-//			if (ret == 6) {//更新数据到缓存器
-//				if (CClientControler::getInstance()->ConverImage() == FALSE) {//将收到的数据转换为CImage图像缓存
-//					TRACE("获取图片失败!\r\n");
-//					continue;
-//				}
-//				CClientControler::getInstance()->GetIsFull() = true;
-//			}
-//			else
-//				Sleep(1);
-//		}//如果还有缓存，就啥也不干，等待无缓存再接受数据，就不需要等待50ms了
-//		else
-//			Sleep(1);
-//	}
-//}
-
 void CRemoteClientDlg::OnNMDblclkTreeDir(NMHDR* pNMHDR, LRESULT* pResult)//树形控件左键双击事件
 {
 	// TODO: 在此添加控件通知处理程序代码
@@ -456,20 +415,7 @@ LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)// WPARAM �
 
 void CRemoteClientDlg::OnBnClickedBtnStartWatch()
 {
-	// TODO: 在此添加控件通知处理程序代码
-	//m_isClosed = false;
 	CClientControler::getInstance()->StartWatch();
-	
-
-	//unsigned thraddr;
-	//CWatchDialog dlg;
-	//HANDLE hThread = (HANDLE)_beginthreadex(NULL, 0, CRemoteClientDlg::threadEntryWatchData, this, 0, &thraddr);
-	////此时因为监控对话框定义的是模态的，所以不用担心狂点远程监控按钮的问题
-	////GetDlgItem(IDC_BTN_START_WATCH)->EnableWindow(FALSE);//EnableWindow 启用或禁用鼠标和键盘输入，TRUE:启用 FALSE:禁用 防止狂点
-
-	//dlg.DoModal();//将监控对话框设为模态对话框
-	//WaitForSingleObject(hThread, 500);//监控对话框关闭后等待500ms关闭线程
-	//m_isClosed = true;
 }
 
 

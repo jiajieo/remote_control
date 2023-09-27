@@ -2,6 +2,8 @@
 #include <string>
 #include <vector>
 #include "Tool.h"
+#include <list>
+#include <map>
 
 #pragma pack(push)
 #pragma pack(1)
@@ -87,11 +89,11 @@ public:
 		return *this;
 	}
 
-	int Size() const{//数据包的长度
+	int Size() const {//数据包的长度
 		return nLength + 2 + 4;
 	}
 
-	const char* Data(std::string& strOut) const{//将整个数据包的数据转成字符串型，方便查看读取。
+	const char* Data(std::string& strOut) const {//将整个数据包的数据转成字符串型，方便查看读取。
 		strOut.resize(Size());//将strOut字符串大小指定为整个数据包的长度
 		BYTE* pData = (BYTE*)strOut.c_str();//定义一个BYTE数据类型的指针指向整个包的数据字符串
 		*(WORD*)pData = sHead; pData += 2;
@@ -224,10 +226,64 @@ public:
 		m_sockCli = INVALID_SOCKET;
 	}
 	//刷新IP地址和端口号
-	void UpdataAddress(const DWORD nIP,const int port) {
+	void UpdataAddress(const DWORD nIP, const int port) {
 		m_nIP = nIP;
 		m_port = port;
 	}
+
+	std::list<CPacket>& GetlistPack() {
+		return m_listPack;
+	}
+
+	//int SendPacket(HANDLE& hEvent, BOOL& bAutoClose) {
+	//	m_hEvent = hEvent;
+	//	unsigned thraddr;
+	//	if (InitSocket() == true) {
+	//		_beginthreadex(NULL,0,&CClientSocket::threadSendPacket, this,0, &thraddr);
+	//		WaitForSingleObject(m_hEvent, INFINITE);
+	//		if (bAutoClose)//bAutoClose默认为TRUE
+	//			CloseSocket();
+	//	}
+	//	return 0;
+	//}
+
+	/*static unsigned __stdcall threadSendPacket(void* arg) {
+		CClientSocket* thiz = (CClientSocket*)arg;
+		thiz->threadFunc();
+		_endthreadex(0);
+		return 0;
+	}*/
+
+	//void threadFunc() {
+	//	//WaitForSingleObject(m_hEvent, INFINITE);
+	//	if (m_sockCli != INVALID_SOCKET) {
+	//		Send(m_listPack.front());
+	//		m_listPack.pop_front();
+	//		char buf[BUFFER_SIZE] = "";
+	//		int index = 0;
+	//		while (true) {
+	//			size_t len = recv(m_sockCli, buf + index, BUFFER_SIZE - index, 0);
+	//			if (len == SOCKET_ERROR || len == 0) {
+	//				TRACE("recv error=%d(%s)\n", WSAGetLastError(), GetError(WSAGetLastError()));
+	//				return;
+	//			}
+	//			len += index;
+	//			index = len;
+	//			CPacket pack((BYTE*)buf, len);
+	//			if (len > 0) {
+	//				memmove(buf, buf + len, index - len);
+	//				index = index - len;
+	//				m_listPack.push_back(pack);
+	//				SetEvent(m_hEvent);
+	//			}
+	//			else {
+	//				memset(buf, 0, sizeof(buf));
+	//				index = 0;
+	//			}
+	//		}
+
+	//	}
+	//}
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 	//单例其实就不需要复制构造函数了。
@@ -248,7 +304,7 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 		memcpy(&m_pack, &ss.m_pack, sizeof(CPacket));
 		m_sockCli = ss.m_sockCli;
 	}
-	CClientSocket():m_nIP(INADDR_ANY),m_port(0) {//无效IP、无效端口
+	CClientSocket() :m_nIP(INADDR_ANY), m_port(0) {//无效IP、无效端口
 		m_sockCli = INVALID_SOCKET;
 		m_buffer.resize(BUFFER_SIZE);//为该动态数组设定新的内存大小
 
@@ -256,7 +312,7 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 			MessageBox(NULL, _T("无法初始化网络套接字库"), _T("套接字初始化错误"), MB_OK | MB_ICONERROR);
 			exit(0);//关闭所有文件，终止正在执行的进程
 		}
-		
+
 	}
 	~CClientSocket() {
 		closesocket(m_sockCli);
@@ -299,6 +355,9 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 	};
 
 private://成员变量是需要依赖这个类的实现的，是组合关系；但如果是指针就会从组合关系降为依赖关系
+	std::list<CPacket> m_listPack;
+	HANDLE m_hEvent;
+
 	//对IP和端口号的存放
 	int m_port;
 	DWORD m_nIP;
