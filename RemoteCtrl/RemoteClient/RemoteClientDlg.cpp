@@ -192,7 +192,7 @@ HCURSOR CRemoteClientDlg::OnQueryDragIcon()
 void CRemoteClientDlg::OnBnClickedBtnConnect()//连接测试
 {
 	// TODO: 在此添加控件通知处理程序代码
-	if (CClientControler::getInstance()->SendPacket(1981) == 1981)
+	if (SendPacket(1981).sCmd == 1981)
 		MessageBox("连接成功");
 }
 
@@ -200,8 +200,8 @@ void CRemoteClientDlg::OnBnClickedBtnConnect()//连接测试
 void CRemoteClientDlg::OnBnClickedBtnViewfile()//查看文件
 {
 	// TODO: 在此添加控件通知处理程序代码
-	SendPacket(1);
-	std::string drivers = CClientControler::getInstance()->Getpacket().strData;
+	
+	std::string drivers = SendPacket(1).strData;
 	std::string dr;
 	TRACE("drivers.c_str():%s\n", drivers.c_str());
 	m_tree.DeleteAllItems();//删除树视图控件的所有项
@@ -219,9 +219,11 @@ void CRemoteClientDlg::OnBnClickedBtnViewfile()//查看文件
 	m_tree.InsertItem(NULL, hTemp, TVI_LAST);//使该磁盘有后续
 }
 
-int CRemoteClientDlg::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAutoClose)//发送命令 
+CPacket CRemoteClientDlg::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAutoClose)//发送命令 
 {
-	return 	CClientControler::getInstance()->SendPacket(nCmd, pData, nSize, bAutoClose);
+	std::list<CPacket> lstPack;
+	CClientControler::getInstance()->SendPacket(nCmd, pData, nSize, bAutoClose, &lstPack);
+	return lstPack.front();
 }
 
 CString CRemoteClientDlg::GetPath(HTREEITEM hTree) {//获取树控件路径
@@ -262,8 +264,8 @@ void CRemoteClientDlg::LoadFileInfo()
 	DeleteTreeChild(hTreeSelected);//删除树控键子项
 	m_List.DeleteAllItems();//删除列表控件所有项
 	CString strPath = GetPath(hTreeSelected);//获取树控件路径
-	SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false);
-	PFILEINFO tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();
+	;
+	PFILEINFO tempfile = (PFILEINFO)SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false).strData.c_str();
 	int count = 0;
 	while (tempfile->IsHasNext) {//判断文件是否有后续
 		TRACE("[%s] IsDirectory:%d\r\n", tempfile->szFileName, tempfile->IsDirectory);
@@ -408,8 +410,7 @@ void CRemoteClientDlg::OnOpenFile()//打开文件
 LRESULT CRemoteClientDlg::OnSendPacket(WPARAM wParam, LPARAM lParam)// WPARAM 和 LPARAM 各占4字节
 {
 	CString strPath = (LPCSTR)lParam;//LPCSTR 用于传递指向以NULL字符结尾的常量字符串的指针参数；LPCTSTR 和LPCSTR 是在Unicode字符集(宽字符集)环境下传递宽字符字符串参数。
-	int ret = SendPacket(wParam >> 1, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), wParam & 1);//0是0000 0000,1是0000 0001别搞错了
-	return ret;
+	return SendPacket(wParam >> 1, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), wParam & 1).sCmd;//0是0000 0000,1是0000 0001别搞错了
 }
 
 

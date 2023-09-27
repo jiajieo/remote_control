@@ -21,7 +21,7 @@ public:
 		hEvent = pack.hEvent;
 	}
 	//打包数据
-	CPacket(WORD nCmd, const char* pData, size_t nSize,HANDLE hEvent) {
+	CPacket(WORD nCmd, const char* pData, size_t nSize, HANDLE hEvent) {
 		sHead = 0xFEFF;
 		nLength = nSize + 4;//+命令和校验是包长度
 		sCmd = nCmd;
@@ -38,7 +38,7 @@ public:
 		}
 		this->hEvent = hEvent;
 	}
-	CPacket(const BYTE* pData, size_t& nSize) :hEvent(INVALID_HANDLE_VALUE){//方便解析数据，随便丢进来一个数据进行解析  BYTE:unsigned char BYTE 1字节
+	CPacket(const BYTE* pData, size_t& nSize) :hEvent(INVALID_HANDLE_VALUE) {//方便解析数据，随便丢进来一个数据进行解析  BYTE:unsigned char BYTE 1字节
 		size_t i = 0;//字节长度跟踪
 		for (; i < nSize; i++) {
 			if (*(WORD*)(pData + i) == 0xFEFF) {//找到一个包头
@@ -195,6 +195,30 @@ public:
 		}
 		return -1;
 	}
+
+
+	bool SendPacket(const CPacket& pack, std::list<CPacket>& lstPack) {
+		m_listSend.push_back(pack);//将发送的数据加入到发送队列里
+		if (m_sockCli == INVALID_SOCKET) {
+			if (InitSocket() == false)return false;
+			//_beginthread(&threadSendPacket, 0, this);
+			_beginthread(threadSendPacket, 0,this);
+		}
+
+		WaitForSingleObject(pack.hEvent, INFINITE);//等待上一个命令发送完，事件对象变为有信号
+		std::map<HANDLE, std::list<CPacket>>::iterator it;
+		it = m_mapAck.find(pack.hEvent);//在接收数据的队列里查找该事件对象，因为每次创建的事件对象的句柄都是独立的，它们具有不同的句柄和状态
+		if (it != m_mapAck.end()) {
+			std::list<CPacket>::iterator i;//将与该事件对象同步的数据包队列遍历输出
+			for (i = it->second.begin(); i != it->second.end(); i++) {
+				lstPack.push_back(*i);
+			}
+			m_mapAck.erase(it);
+			return true;
+		}
+		return false;
+	}
+
 	bool Send(const char* pData, int nSize) {
 		if (m_sockCli == INVALID_SOCKET)return false;
 		return send(m_sockCli, pData, nSize, 0) > 0;
@@ -231,8 +255,10 @@ public:
 	}
 	//刷新IP地址和端口号
 	void UpdataAddress(const DWORD nIP, const int port) {
-		m_nIP = nIP;
-		m_port = port;
+		if (m_nIP != nIP || m_port != port) {
+			m_nIP = nIP;
+			m_port = port;
+		}
 	}
 
 	std::list<CPacket>& GetlistPack() {
@@ -251,51 +277,14 @@ public:
 	//	return 0;
 	//}
 
-	static unsigned __stdcall threadSendPacket(void* arg) {
+	static void threadSendPacket(void* arg) {
 		CClientSocket* thiz = (CClientSocket*)arg;
 		thiz->threadFunc();
+
 		_endthreadex(0);
-		return 0;
 	}
 
-	void threadFunc() {
-		//WaitForSingleObject(m_hEvent, INFINITE);
-		if (InitSocket() == false) return;
-
-		char buf[BUFFER_SIZE] = "";
-		int index = 0;
-		while (m_sockCli!=INVALID_SOCKET) {
-			CPacket& head = m_listSend.front();
-			if (Send(head) == false) {
-				TRACE("发送失败\r\n");
-				continue;
-			}
-			auto pr=m_mapAck.insert(std::pair<HANDLE, std::list<CPacket>>(head.hEvent, std::list<CPacket>()));
-			size_t len = recv(m_sockCli, buf + index, BUFFER_SIZE - index, 0);
-			if (len == SOCKET_ERROR || len == 0) {
-				TRACE("recv error=%d(%s)\n", WSAGetLastError(), GetError(WSAGetLastError()));
-				CloseSocket();
-			}
-			len += index;
-			index = len;
-			CPacket pack((BYTE*)buf, len);
-			//std::list<CPacket>lstRecv;
-			if (len > 0) {
-				memmove(buf, buf + len, index - len);
-				index = index - len;
-				/*m_listPack.push_back(pack);*/
-				//pack.hEvent = head.hEvent;
-				pr.first->second.push_back(pack);
-				SetEvent(m_hEvent);
-			}
-			else {
-				memset(buf, 0, sizeof(buf));
-				index = 0;
-			}
-			m_listSend.pop_front();
-		}
-
-	}
+	void threadFunc();
 
 
 private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
@@ -325,7 +314,7 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 			MessageBox(NULL, _T("无法初始化网络套接字库"), _T("套接字初始化错误"), MB_OK | MB_ICONERROR);
 			exit(0);//关闭所有文件，终止正在执行的进程
 		}
-
+		
 	}
 	~CClientSocket() {
 		closesocket(m_sockCli);
@@ -366,6 +355,8 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 			CClientSocket::releaseInstance();
 		}
 	};
+
+
 
 private://成员变量是需要依赖这个类的实现的，是组合关系；但如果是指针就会从组合关系降为依赖关系
 	std::map<HANDLE, std::list<CPacket>> m_mapAck;

@@ -43,24 +43,23 @@ int CClientControler::Invoke(CWnd*& pMainWnd)
 	return m_RemoteClientDlg.DoModal();
 }
 
-int CClientControler::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAutoClose)
+int CClientControler::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAutoClose, std::list<CPacket>* plstPack)
 {
 	CClientSocket* pClient = CClientSocket::getInstance();
 	//pClient->GetlistPack().push_back(CPacket(nCmd, (const char*)pData, nSize));
 	//ResetEvent(hEvent);
 	//HANDLE m_hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	//pClient->SendPacket(m_hEvent,bAutoClose);
-	int ret;
-	if (pClient->InitSocket() == true) {
-		HANDLE m_hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-		pClient->Send(CPacket(nCmd, (char*)pData, nSize,m_hEvent));
-		ret = pClient->Recv();
-		if (bAutoClose) {
-			pClient->CloseSocket();
-		}
+	//int ret;
+	//if (pClient->InitSocket() == true) {
+	HANDLE m_hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	pClient->SendPacket(CPacket(nCmd, (char*)pData, nSize, m_hEvent), *plstPack);
+	if (plstPack->size() > 0) {
+		return plstPack->front().sCmd;
 	}
-	
-	return ret;
+	//}
+	CloseHandle(m_hEvent);
+	return -1;
 }
 
 int CClientControler::DownLoadFile(CString& ListText, CString& FileDown)

@@ -59,7 +59,7 @@ public:
 	//8 锁机
 	//9 解锁
 	//1981 测试连接
-	int SendPacket(WORD nCmd, BYTE* pData = NULL, size_t nSize = 0, BOOL bAutoClose = TRUE);//发送数据包，确保网络初始化连接正常  bAutoClose=TRUE 套接字自动关闭，表示短连接；否则表示长连接。 
+	int SendPacket(WORD nCmd, BYTE* pData = NULL, size_t nSize = 0, BOOL bAutoClose = TRUE,std::list<CPacket>* plstPack=NULL);//发送数据包，确保网络初始化连接正常  bAutoClose=TRUE 套接字自动关闭，表示短连接；否则表示长连接。 
 
 	BOOL ConverImage() {
 		CClientSocket* pClient = CClientSocket::getInstance();
