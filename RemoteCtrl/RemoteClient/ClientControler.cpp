@@ -53,12 +53,12 @@ int CClientControler::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAut
 	//int ret;
 	//if (pClient->InitSocket() == true) {
 	HANDLE m_hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	pClient->SendPacket(CPacket(nCmd, (char*)pData, nSize, m_hEvent), *plstPack);
+	pClient->SendPacket(CPacket(nCmd, (char*)pData, nSize, m_hEvent), *plstPack,bAutoClose);
 	if (plstPack->size() > 0) {
 		return plstPack->front().sCmd;
 	}
 	//}
-	CloseHandle(m_hEvent);
+	
 	return -1;
 }
 
@@ -162,7 +162,7 @@ unsigned __stdcall CClientControler::threadEntryWatch(void* arg)
 
 void CClientControler::threadWatch()
 {
-	Sleep(50);
+	Sleep(1000);
 	//ULONGLONG ret = GetTickCount64();//检索自启动以来经过的毫秒数
 	while (m_isClosed == false) {//不关闭对话框
 		//if (GetTickCount64() - ret < 50) { //这里是每过50ms在接收数据
@@ -177,6 +177,7 @@ void CClientControler::threadWatch()
 			//int ret = SendMessage(m_RemoteClientDlg, WM_SEND_PACKET, 6 << 1 | 1, (LPARAM)Data);
 			std::list<CPacket> lstpack;
 			SendPacket(6, NULL, 0, TRUE, &lstpack);
+			
 			/*CPacket pack(6, NULL, NULL);
 			MSG msg;
 			msg.message = WM_SEND_PACK;
@@ -198,17 +199,18 @@ void CClientControler::threadWatch()
 }
 
 //因为SendMessage能确保线程执行完会返回，所以这里写一个SendMessage接口目的将线程处理完消息的返回结果传递出来，通过用PostThreadMessage 函数将消息发送到线程的消息队列，等待事件对象变为信号状态，将返回值传递出来。
-//LRESULT CClientControler::SendMessage(MSG msg)
-//{
-//	//UUID uuid;//通用唯一的识别码，可以表示计算机系统中的某个实体和资源，确保全局唯一性
-//	//UuidCreate(&uuid);//创建新的UUID
-//	HANDLE hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);//初始为手动无信号状态
-//	if (hEvent == NULL)return-2;//如果事件对象创建失败，不需要发送消息给线程
-//	MsgInfo info(msg);
-//	PostThreadMessage(m_thrdAddr, WM_SEND_MESSAGE, (WPARAM)hEvent, (LPARAM)&info);
-//	WaitForSingleObject(hEvent, INFINITE);
-//	return info.result;
-//}
+LRESULT CClientControler::SendMessage(MSG msg)
+{
+	//UUID uuid;//通用唯一的识别码，可以表示计算机系统中的某个实体和资源，确保全局唯一性
+	//UuidCreate(&uuid);//创建新的UUID
+	HANDLE hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);//初始为手动无信号状态
+	if (hEvent == NULL)return-2;//如果事件对象创建失败，不需要发送消息给线程
+	MsgInfo info(msg);
+	PostThreadMessage(m_thrdAddr, WM_SEND_MESSAGE, (WPARAM)hEvent, (LPARAM)&info);
+	WaitForSingleObject(hEvent, INFINITE);
+	CloseHandle(hEvent);
+	return info.result;
+}
 
 LRESULT CClientControler::OnSendPacket(UINT nMsg, WPARAM wParam, LPARAM lParam)
 {

@@ -317,7 +317,7 @@ int CCommand::MouseEvent(std::list<CPacket>& lstPacket, CPacket& packet)//鼠标操
 		break;
 	}
 	//鼠标操作处理完后，发消息验证一下
-	lstPacket.push_back(CPacket(4, NULL, 0));
+	lstPacket.push_back(CPacket(5, NULL, 0));
 	//m_pServer->Send(pack);
 	return 0;
 }

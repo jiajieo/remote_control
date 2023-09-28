@@ -21,7 +21,7 @@ public:
 		hEvent = pack.hEvent;
 	}
 	//打包数据
-	CPacket(WORD nCmd, const char* pData, size_t nSize, HANDLE hEvent=INVALID_HANDLE_VALUE) {
+	CPacket(WORD nCmd, const char* pData, size_t nSize, HANDLE hEvent = INVALID_HANDLE_VALUE) {
 		sHead = 0xFEFF;
 		nLength = nSize + 4;//+命令和校验是包长度
 		sCmd = nCmd;
@@ -197,27 +197,7 @@ public:
 	}
 
 
-	bool SendPacket(const CPacket& pack, std::list<CPacket>& lstPack) {
-		m_listSend.push_back(pack);//将发送的数据加入到发送队列里
-		if (m_sockCli == INVALID_SOCKET) {
-			if (InitSocket() == false)return false;
-			//_beginthread(&threadSendPacket, 0, this);
-			_beginthread(threadSendPacket, 0,this);
-		}
-
-		WaitForSingleObject(pack.hEvent, INFINITE);//等待上一个命令发送完，事件对象变为有信号
-		std::map<HANDLE, std::list<CPacket>>::iterator it;
-		it = m_mapAck.find(pack.hEvent);//在接收数据的队列里查找该事件对象，因为每次创建的事件对象的句柄都是独立的，它们具有不同的句柄和状态
-		if (it != m_mapAck.end()) {
-			std::list<CPacket>::iterator i;//将与该事件对象同步的数据包队列遍历输出
-			for (i = it->second.begin(); i != it->second.end(); i++) {
-				lstPack.push_back(*i);
-			}
-			m_mapAck.erase(it);
-			return true;
-		}
-		return false;
-	}
+	bool SendPacket(const CPacket& pack, std::list<CPacket>& lstPack, bool isAutoClosed = true);
 
 	bool Send(const char* pData, int nSize) {
 		if (m_sockCli == INVALID_SOCKET)return false;
@@ -295,6 +275,7 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 			m_port = ss.m_port;
 			memcpy(&m_pack, &ss.m_pack, sizeof(CPacket));
 			m_sockCli = ss.m_sockCli;
+			m_isAutoClosed = ss.m_isAutoClosed;
 		}
 		else {
 			return *this;
@@ -305,16 +286,18 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 		m_port = ss.m_port;
 		memcpy(&m_pack, &ss.m_pack, sizeof(CPacket));
 		m_sockCli = ss.m_sockCli;
+		m_isAutoClosed = ss.m_isAutoClosed;
 	}
 	CClientSocket() :m_nIP(INADDR_ANY), m_port(0) {//无效IP、无效端口
 		m_sockCli = INVALID_SOCKET;
 		m_buffer.resize(BUFFER_SIZE);//为该动态数组设定新的内存大小
+		m_isAutoClosed = true;
 
 		if (WSAServerInit() == FALSE) {
 			MessageBox(NULL, _T("无法初始化网络套接字库"), _T("套接字初始化错误"), MB_OK | MB_ICONERROR);
 			exit(0);//关闭所有文件，终止正在执行的进程
 		}
-		
+
 	}
 	~CClientSocket() {
 		closesocket(m_sockCli);
@@ -359,8 +342,11 @@ private://这里包括它的复制，赋值构造函数都要写为私有的，不能让外部的进行构造
 
 
 private://成员变量是需要依赖这个类的实现的，是组合关系；但如果是指针就会从组合关系降为依赖关系
-	std::map<HANDLE, std::list<CPacket>> m_mapAck;
 	std::list<CPacket> m_listSend;
+	std::map<HANDLE, std::list<CPacket>> m_mapAck;
+	bool m_isAutoClosed;
+	std::map<HANDLE, bool> m_mapAutoClosed;//同步到每一个发送的数据对象
+
 	HANDLE m_hEvent;
 
 	//对IP和端口号的存放

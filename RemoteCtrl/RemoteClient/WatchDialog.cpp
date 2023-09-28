@@ -211,7 +211,8 @@ void CWatchDialog::OnMouseMove(UINT nFlags, CPoint point)
 	mouse.nButton = 3;
 	mouse.ptXY = remote;
 	//TODO:使用SendMessage发送消息时存在一个设计隐患，网络通信和对话框有耦合
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE,&plstPack);
 	CDialog::OnMouseMove(nFlags, point);
 }
 

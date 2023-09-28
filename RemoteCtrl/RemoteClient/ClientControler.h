@@ -26,7 +26,7 @@ public:
 	//启动
 	int Invoke(CWnd*& pMainWnd);
 	//向消息处理线程中发送消息
-	//LRESULT SendMessage(MSG msg);
+	LRESULT SendMessage(MSG msg);
 	//更新网络的ID地址
 	void UpdataAddress(DWORD& nIP, int& port) {
 		CClientSocket::getInstance()->UpdataAddress(nIP, port);

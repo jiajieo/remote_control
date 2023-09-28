@@ -18,50 +18,92 @@ std::string GetError(int a) {//a:WSAGetLastError() º¯ÊıµÄ²ÎÊıÒ»¶¨²»ÄÜĞ´ºê¶¨ÒåµÄ¡
 	return Err;
 }
 
-void CClientSocket::threadFunc()
+bool CClientSocket::SendPacket(const CPacket& pack, std::list<CPacket>& lstPack, bool isAutoClosed)
 {
-	//WaitForSingleObject(m_hEvent, INFINITE);
-	/*while (m_nIP == INADDR_ANY || m_port == 0)
-		Sleep(1);*/
+	m_listSend.push_back(pack);//½«·¢ËÍµÄÊı¾İ¼ÓÈëµ½·¢ËÍ¶ÓÁĞÀï
+	if (m_sockCli == INVALID_SOCKET) {
+		//	if (InitSocket() == false)return false;
+		_beginthread(&threadSendPacket, 0, this);
 
-	std::vector<char> pBuf;
-	pBuf.resize(BUFFER_SIZE);
-	char* buf = pBuf.data();
-	memset(buf, 0, sizeof(buf));
-	int index = 0;
-	while (m_sockCli != INVALID_SOCKET) {
-		if (m_listSend.size() > 0) {
-			CPacket& head = m_listSend.front();
-			if (Send(head) == false) {
-				TRACE("·¢ËÍÊ§°Ü\r\n");
-				continue;
-			}
-			auto pr = m_mapAck.insert(std::pair<HANDLE, std::list<CPacket>>(head.hEvent, std::list<CPacket>()));//±£´æ·¢ËÍÊı¾İµÄÊÂ¼ş¶ÔÏó
-			size_t len = recv(m_sockCli, buf + index, BUFFER_SIZE - index, 0);
-			if (len == SOCKET_ERROR || len == 0) {
-				TRACE("recv error=%d(%s)\n", WSAGetLastError(), GetError(WSAGetLastError()));
-				CloseSocket();
-			}
-			len += index;
-			index = len;
-			CPacket pack((BYTE*)buf, len);
-			//std::list<CPacket>lstRecv;
-			if (len > 0) {
-				memmove(buf, buf + len, index - len);
-				index = index - len;
-				/*m_listPack.push_back(pack);*/
-				//pack.hEvent = head.hEvent;
-				pr.first->second.push_back(pack);//½«´¦ÀíºÃµÄÊı¾İ°üÒ²·ÅÈë½ÓÊÕÈİÆ÷
-				SetEvent(head.hEvent);
-			}
-			else {
-				memset(buf, 0, sizeof(buf));
-				index = 0;
-			}
-			m_listSend.pop_front();
-			break;
-		}
 	}
+	//_beginthread(threadSendPacket, 0, this);
+	m_mapAck.insert(std::pair<HANDLE, std::list<CPacket>>(pack.hEvent, std::list<CPacket>()));//±£´æ·¢ËÍÊı¾İµÄÊÂ¼ş¶ÔÏó
+	m_mapAutoClosed.insert(std::pair<HANDLE, bool>(pack.hEvent, isAutoClosed));
+	WaitForSingleObject(pack.hEvent, INFINITE);//µÈ´ıÉÏÒ»¸öÃüÁî·¢ËÍÍê£¬ÊÂ¼ş¶ÔÏó±äÎªÓĞĞÅºÅ
+	std::map<HANDLE, std::list<CPacket>>::iterator it;
+	it = m_mapAck.find(pack.hEvent);//ÔÚ½ÓÊÕÊı¾İµÄ¶ÓÁĞÀï²éÕÒ¸ÃÊÂ¼ş¶ÔÏó£¬ÒòÎªÃ¿´Î´´½¨µÄÊÂ¼ş¶ÔÏóµÄ¾ä±ú¶¼ÊÇ¶ÀÁ¢µÄ£¬ËüÃÇ¾ßÓĞ²»Í¬µÄ¾ä±úºÍ×´Ì¬
+	if (it != m_mapAck.end()) {
+		std::list<CPacket>::iterator i;//½«Óë¸ÃÊÂ¼ş¶ÔÏóÍ¬²½µÄÊı¾İ°ü¶ÓÁĞ±éÀúÊä³ö
+		for (i = it->second.begin(); i != it->second.end(); i++) {
+			lstPack.push_back(*i);
 
-	CloseSocket();
+		}
+		m_mapAck.erase(it);
+		CloseHandle(m_hEvent);
+		return true;
+		//return false;
+	}
+	
 }
+
+	void CClientSocket::threadFunc()
+	{
+		//WaitForSingleObject(m_hEvent, INFINITE);
+		/*while (m_nIP == INADDR_ANY || m_port == 0)
+			Sleep(1);*/
+
+		std::vector<char> pBuf;
+		pBuf.resize(BUFFER_SIZE);
+		char* buf = pBuf.data();
+		memset(buf, 0, sizeof(buf));
+		int index = 0;
+		while (true) {
+			/*if (m_sockCli == INVALID_SOCKET) {
+				InitSocket();
+			}*/
+			if (m_listSend.size() > 0) {
+				//Sleep(1);
+				InitSocket();
+				TRACE("lstpack.size()=%d\n", m_listSend.size());
+				CPacket& head = m_listSend.front();
+				if (Send(head) == false) {
+					TRACE("·¢ËÍÊ§°Ü\r\n");
+					continue;
+				}
+				//auto pr = m_mapAck.insert(std::pair<HANDLE, std::list<CPacket>>(head.hEvent, std::list<CPacket>()));//±£´æ·¢ËÍÊı¾İµÄÊÂ¼ş¶ÔÏó
+				std::map<HANDLE, std::list<CPacket>>::iterator it;
+				it = m_mapAck.find(head.hEvent);
+				std::map<HANDLE, bool>::iterator it0;
+				it0 = m_mapAutoClosed.find(head.hEvent);
+				do {
+					size_t len = recv(m_sockCli, buf + index, BUFFER_SIZE - index, 0);
+					if (len == SOCKET_ERROR || len == 0) {
+						TRACE("recv error=%d(%s)\n", WSAGetLastError(), GetError(WSAGetLastError()));
+						CloseSocket();
+						SetEvent(head.hEvent);
+					}
+					len += index;
+					index = len;
+					CPacket pack((BYTE*)buf, len);
+					//std::list<CPacket>lstRecv;
+					if (len > 0) {
+						memmove(buf, buf + len, index - len);
+						index = index - len;
+						/*m_listPack.push_back(pack);*/
+						//pack.hEvent = head.hEvent;
+						it->second.push_back(pack);//½«´¦ÀíºÃµÄÊı¾İ°üÒ²·ÅÈë½ÓÊÕÈİÆ÷
+						if (it0->second == true)
+							SetEvent(head.hEvent);
+					}
+					else {
+						memset(buf, 0, sizeof(buf));
+						index = 0;
+					}
+				} while (it0->second == false);
+				m_listSend.pop_front();
+
+				break;
+			}
+		}
+		CloseSocket();
+	}
