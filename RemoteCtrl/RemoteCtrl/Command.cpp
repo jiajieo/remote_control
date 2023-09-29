@@ -101,7 +101,7 @@ void CCommand::RunCCommand(void* arg, int status, std::list<CPacket>& lstPacket,
 //	return 0;
 //}
 
-int CCommand::MakeDriverInfo(std::list<CPacket>& lstPacket, CPacket& packet)//创建一个磁盘分区
+int CCommand::MakeDriverInfo(std::list<CPacket>& lstPacket, CPacket& packet)
 {
 	std::string result;
 	for (int i = 1; i <= 26; i++) {//查找磁盘分区

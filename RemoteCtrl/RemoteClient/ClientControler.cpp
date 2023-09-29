@@ -110,34 +110,31 @@ void CClientControler::threadDownFile()
 		//int ret = SendPacket(4, (BYTE*)(LPCSTR)FileDown, FileDown.GetLength(), FALSE);//SendPacket这个函数是外部的线程不能随便用
 		//int ret = OnSendPacket(4 << 1 | 0, (LPARAM)(LPCSTR)FileDown);
 		//int ret = SendMessage(WM_SEND_PACKET, 4 << 1 | 0, (LPARAM)(LPCSTR)FileDown);//将制定消息发送到一个或多个窗口
-		int ret = SendPacket(4, (BYTE*)m_FileDown.GetBuffer(), m_FileDown.GetLength(), FALSE);
+		std::list<CPacket> lstPack;
+		int ret = SendPacket(4, (BYTE*)m_FileDown.GetBuffer(), m_FileDown.GetLength(), FALSE,&lstPack);
 		if (ret < 0) {
 			AfxMessageBox("下载失败");
 			break;
 		}
-		//文件大小
-		long long data = *(long long*)Getpacket().strData.c_str();//将字符串转换成long long整型
-		if (data == 0) {
-			AfxMessageBox("文件长度为0，无法读取文件!");
-			break;
-		}
-
-		long long nCount = 0;
-		while (nCount < data) {
-			int ret = Recv();
-			if (ret < 0) {
-				AfxMessageBox("传输失败");
+		if (lstPack.size() > 0) {
+			//文件大小
+			long long data = *(long long*)lstPack.front().strData.c_str();
+			if (data == 0) {
+				AfxMessageBox("文件长度为0，无法读取文件!");
 				break;
 			}
-			size_t len = fwrite(Getpacket().strData.c_str(), 1, Getpacket().strData.size(), pFile);
-			nCount += len;
+			long long nCount = 0;
+			std::list<CPacket>::iterator it = lstPack.begin();
+			for (++it; it != lstPack.end(); it++) {
+				size_t len = fwrite(it->strData.c_str(), 1, it->strData.size(), pFile);
+				nCount += len;
+			}
+			TRACE("接收到文件大小:%d\n", nCount);
+			if (nCount == data)
+				AfxMessageBox("下载成功!", MB_SETFOREGROUND);
 		}
-		TRACE("接收到文件大小:%d\n", nCount);
-		if (nCount == data)
-			AfxMessageBox("下载成功!", MB_SETFOREGROUND);
 	} while (false);
 	fclose(pFile);
-	CloseSocket();
 	m_StatusDlg.ShowWindow(SW_HIDE);
 	m_RemoteClientDlg.EndWaitCursor();
 }
@@ -162,7 +159,7 @@ unsigned __stdcall CClientControler::threadEntryWatch(void* arg)
 
 void CClientControler::threadWatch()
 {
-	Sleep(1000);
+	Sleep(50);
 	//ULONGLONG ret = GetTickCount64();//检索自启动以来经过的毫秒数
 	while (m_isClosed == false) {//不关闭对话框
 		//if (GetTickCount64() - ret < 50) { //这里是每过50ms在接收数据

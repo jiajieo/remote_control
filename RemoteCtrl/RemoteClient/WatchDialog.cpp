@@ -129,7 +129,8 @@ void CWatchDialog::OnLButtonDblClk(UINT nFlags, CPoint point)
 	mouse.nAction = 1;
 	mouse.nButton = 0;
 	mouse.ptXY = remote;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 	CDialog::OnLButtonDblClk(nFlags, point);
 }
 
@@ -145,7 +146,8 @@ void CWatchDialog::OnLButtonDown(UINT nFlags, CPoint point)
 	mouse.nAction = 2;
 	mouse.nButton = 0;
 	mouse.ptXY = remote;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 	CDialog::OnLButtonDown(nFlags, point);
 }
 
@@ -158,7 +160,8 @@ void CWatchDialog::OnRButtonDblClk(UINT nFlags, CPoint point)
 	mouse.nAction = 1;
 	mouse.nButton = 1;
 	mouse.ptXY = remote;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 	CDialog::OnRButtonDblClk(nFlags, point);
 }
 
@@ -171,7 +174,8 @@ void CWatchDialog::OnRButtonDown(UINT nFlags, CPoint point)
 	mouse.nAction = 2;
 	mouse.nButton = 1;
 	mouse.ptXY = remote;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 	CDialog::OnRButtonDown(nFlags, point);
 }
 
@@ -184,7 +188,8 @@ void CWatchDialog::OnLButtonUp(UINT nFlags, CPoint point)
 	mouse.nAction = 4;
 	mouse.nButton = 0;
 	mouse.ptXY = remote;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 	CDialog::OnLButtonUp(nFlags, point);
 }
 
@@ -197,7 +202,8 @@ void CWatchDialog::OnRButtonUp(UINT nFlags, CPoint point)
 	mouse.nAction = 4;
 	mouse.nButton = 1;
 	mouse.ptXY = remote;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 	CDialog::OnRButtonUp(nFlags, point);
 }
 
@@ -225,7 +231,8 @@ void CWatchDialog::OnMButtonDown(UINT nFlags, CPoint point)
 	mouse.nAction = 2;
 	mouse.nButton = 2;
 	mouse.ptXY = remote;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 	CDialog::OnMButtonDown(nFlags, point);
 }
 
@@ -238,7 +245,8 @@ void CWatchDialog::OnMButtonUp(UINT nFlags, CPoint point)
 	mouse.nAction = 4;
 	mouse.nButton = 2;
 	mouse.ptXY = remote;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 	CDialog::OnMButtonUp(nFlags, point);
 }
 
@@ -251,7 +259,8 @@ void CWatchDialog::OnMButtonDblClk(UINT nFlags, CPoint point)
 	mouse.nAction = 1;
 	mouse.nButton = 2;
 	mouse.ptXY = remote;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 	CDialog::OnMButtonDblClk(nFlags, point);
 }
 
@@ -266,7 +275,8 @@ void CWatchDialog::OnStnClickedWatch()//只有将Picture Control（图片控件�
 	mouse.nAction = 0;
 	mouse.nButton = 0;
 	mouse.ptXY = remote;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse));
+	std::list<CPacket> plstPack;
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 }
 
 
@@ -284,12 +294,13 @@ void CWatchDialog::OnBnClickedBtnLock()
 	if (islock==false) {//没锁，点的是锁机
 		m_lock.SetWindowText("解锁");
 		islock = true;
-		
-		CClientControler::getInstance()->SendPacket(8, NULL, 0,FALSE);
+		std::list<CPacket> plstPack;
+		CClientControler::getInstance()->SendPacket(8, NULL, 0, TRUE, &plstPack);
 	}
 	else if (islock=true) {//锁了，点的是解锁
 		m_lock.SetWindowText("锁机");
 		islock = false;
-		CClientControler::getInstance()->SendPacket(9, NULL, 0,FALSE);
+		std::list<CPacket> plstPack;
+		CClientControler::getInstance()->SendPacket(9, NULL, 0, TRUE, &plstPack);
 	}
 }

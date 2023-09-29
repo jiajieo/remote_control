@@ -200,7 +200,7 @@ void CRemoteClientDlg::OnBnClickedBtnConnect()//连接测试
 void CRemoteClientDlg::OnBnClickedBtnViewfile()//查看文件
 {
 	// TODO: 在此添加控件通知处理程序代码
-	
+
 	std::string drivers = SendPacket(1).strData;
 	std::string dr;
 	TRACE("drivers.c_str():%s\n", drivers.c_str());
@@ -265,41 +265,37 @@ void CRemoteClientDlg::LoadFileInfo()
 	m_List.DeleteAllItems();//删除列表控件所有项
 	CString strPath = GetPath(hTreeSelected);//获取树控件路径
 	//PFILEINFO tempfile = (PFILEINFO)SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false).strData.c_str();
-	CPacket pack(2, strPath.GetBuffer(), strPath.GetLength());
-	CClientControler::getInstance()->InitSocket();
-	CClientControler::getInstance()->Send(pack);
-	CClientControler::getInstance()->Recv();
-	PFILEINFO tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();
-	int count = 0;
-	while (tempfile->IsHasNext) {//判断文件是否有后续
-		TRACE("[%s] IsDirectory:%d\r\n", tempfile->szFileName, tempfile->IsDirectory);
-		if (tempfile->IsDirectory) {//目录
-			if (CString(tempfile->szFileName) == "." || CString(tempfile->szFileName) == "..") {
-				int ret = CClientControler::getInstance()->Recv();
-				if (ret != 2)break;
-				tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();
-				continue;
-			}
-			else {//正常的目录
-				HTREEITEM hTemp = m_tree.InsertItem(tempfile->szFileName, hTreeSelected, TVI_LAST);//树视图控件插入新项，后俩是插入项父级句柄和新项句柄。 插入成功返回新项的句柄
-				m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+	//CPacket pack(2, strPath.GetBuffer(), strPath.GetLength());
+	std::list<CPacket> lstPack;
+	CClientControler::getInstance()->SendPacket(2, (BYTE*)strPath.GetBuffer(), strPath.GetLength(), FALSE, &lstPack);
+	if (lstPack.size() > 0) {
+		int Count = 0;
+		std::list<CPacket>::iterator it = lstPack.begin();
+		for (; it != lstPack.end(); it++) {
+			PFILEINFO tempfile = (PFILEINFO)it->strData.c_str();
+			if (tempfile->IsHasNext) {
+				if (tempfile->IsDirectory) {//目录
+					if (CString(tempfile->szFileName) == "." || CString(tempfile->szFileName) == "..") {
+						continue;
+					}
+					else {
+						HTREEITEM hTemp = m_tree.InsertItem(tempfile->szFileName, hTreeSelected, TVI_LAST);//树视图控件插入新项，后俩是插入项父级句柄和新项句柄。 插入成功返回新项的句柄
+						m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+					}
+				}
+				else {
+					m_List.InsertItem(0, tempfile->szFileName);//在列表视图控件中插入新项。第一个参数0：在列表第一行插入一行；-1：在列表末尾插入一行
+				}
+				Count++;
 			}
 		}
-		else {//文件
-			m_List.InsertItem(0, tempfile->szFileName);//在列表视图控件中插入新项。第一个参数0：在列表第一行插入一行；-1：在列表末尾插入一行
-		}
-		int ret = CClientControler::getInstance()->Recv();
-		if (ret != 2)break;
-		tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();//可以从const char* 强制转换为结构体的指针FILEINFO*.
-		count++;
+		TRACE("%s路径下有%d个文件！\n", strPath, Count);
 	}
-	TRACE("%s路径下有%d个文件！\n", strPath, count);
-	CClientControler::getInstance()->CloseSocket();
 }
 
 void CRemoteClientDlg::LoadFileCurrent()
 {
-	HTREEITEM hTreeSelected = m_tree.GetSelectedItem();
+	HTREEITEM hTreeSelected = m_tree.GetSelectedItem();//检索当前选定项
 	if (hTreeSelected == NULL)
 		return;
 	if (m_tree.GetChildItem(hTreeSelected) == NULL) {
@@ -309,33 +305,31 @@ void CRemoteClientDlg::LoadFileCurrent()
 	DeleteTreeChild(hTreeSelected);//删除树控键子项
 	m_List.DeleteAllItems();//删除列表控件所有项
 	CString strPath = GetPath(hTreeSelected);//获取树控件路径
-	SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false);
-	PFILEINFO tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();
-	int count = 0;
-	while (tempfile->IsHasNext) {//判断文件是否有后续
-		TRACE("[%s] IsDirectory:%d\r\n", tempfile->szFileName, tempfile->IsDirectory);
-		if (tempfile->IsDirectory) {//目录
-			if (CString(tempfile->szFileName) == "." || CString(tempfile->szFileName) == "..") {
-				int ret = CClientControler::getInstance()->Recv();
-				if (ret != 2)break;
-				tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();
-				continue;
-			}
-			else {//正常的目录
-				HTREEITEM hTemp = m_tree.InsertItem(tempfile->szFileName, hTreeSelected, TVI_LAST);//树视图控件插入新项，后俩是插入项父级句柄和新项句柄。 插入成功返回新项的句柄
-				m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+	std::list<CPacket> lstPack;
+	CClientControler::getInstance()->SendPacket(2, (BYTE*)(LPCSTR)strPath, strPath.GetLength(), false,&lstPack);
+	if (lstPack.size() > 0) {
+		int Count = 0;
+		std::list<CPacket>::iterator it = lstPack.begin();
+		for (; it != lstPack.end(); it++) {
+			PFILEINFO tempfile = (PFILEINFO)it->strData.c_str();
+			if (tempfile->IsHasNext) {
+				if (tempfile->IsDirectory) {//目录
+					if (CString(tempfile->szFileName) == "." || CString(tempfile->szFileName) == "..") {
+						continue;
+					}
+					else {
+						HTREEITEM hTemp = m_tree.InsertItem(tempfile->szFileName, hTreeSelected, TVI_LAST);//树视图控件插入新项，后俩是插入项父级句柄和新项句柄。 插入成功返回新项的句柄
+						m_tree.InsertItem(NULL, hTemp, TVI_LAST);
+					}
+				}
+				else {
+					m_List.InsertItem(0, tempfile->szFileName);//在列表视图控件中插入新项。第一个参数0：在列表第一行插入一行；-1：在列表末尾插入一行
+				}
+				Count++;
 			}
 		}
-		else {//文件
-			m_List.InsertItem(0, tempfile->szFileName);//在列表视图控件中插入新项。第一个参数0：在列表第一行插入一行；-1：在列表末尾插入一行
-		}
-		int ret = CClientControler::getInstance()->Recv();
-		if (ret != 2)break;
-		tempfile = (PFILEINFO)CClientControler::getInstance()->Getpacket().strData.c_str();//可以从const char* 强制转换为结构体的指针FILEINFO*.
-		count++;
+		TRACE("%s路径下有%d个文件！\n", strPath, Count);
 	}
-	TRACE("%s路径下有%d个文件！\n", strPath, count);
-	CClientControler::getInstance()->CloseSocket();
 }
 
 
