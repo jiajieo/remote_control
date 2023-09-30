@@ -20,7 +20,9 @@ std::string GetError(int a) {//a:WSAGetLastError() º¯ÊıµÄ²ÎÊıÒ»¶¨²»ÄÜĞ´ºê¶¨ÒåµÄ¡
 
 bool CClientSocket::SendPacket(const CPacket& pack, std::list<CPacket>& lstPack, bool isAutoClosed)
 {
+	m_lock.lock();//ÉÏËø
 	m_listSend.push_back(pack);//½«·¢ËÍµÄÊı¾İ¼ÓÈëµ½·¢ËÍ¶ÓÁĞÀï
+	m_lock.unlock();
 	if (m_sockCli == INVALID_SOCKET) {
 		//	if (InitSocket() == false)return false;
 		_beginthread(&threadSendPacket, 0, this);
@@ -55,8 +57,7 @@ void CClientSocket::threadFunc()//Ïß³Ì¿ªÊ¼Ö´ĞĞ¾Í²»»áÍË³ö£¬Ò»Ö±´¦ÀíÊı¾İµÄ·¢ËÍ½ÓÊÕ
 	std::vector<char> pBuf;
 	pBuf.resize(BUFFER_SIZE);
 	char* buf = pBuf.data();
-	memset(buf, 0, sizeof(buf));
-	int index = 0;
+	
 	while (true) {
 		/*if (m_sockCli == INVALID_SOCKET) {
 			InitSocket();
@@ -75,12 +76,14 @@ void CClientSocket::threadFunc()//Ïß³Ì¿ªÊ¼Ö´ĞĞ¾Í²»»áÍË³ö£¬Ò»Ö±´¦ÀíÊı¾İµÄ·¢ËÍ½ÓÊÕ
 			it = m_mapAck.find(head.hEvent);
 			std::map<HANDLE, bool>::iterator it0;
 			it0 = m_mapAutoClosed.find(head.hEvent);
+			memset(buf, 0, sizeof(buf));
+			int index = 0;
 			do {
 				size_t len = recv(m_sockCli, buf + index, BUFFER_SIZE - index, 0);
 				if (len == SOCKET_ERROR || len == 0) {
 					TRACE("recv error=%d(%s)\n", WSAGetLastError(), GetError(WSAGetLastError()));
 					//CloseSocket();
-					
+
 					//Èç¹û½ÓÊÕÊ§°Ü»òÕß½ÓÊÕÎª0£¬¾Í½áÊø¸ÃÃüÁîÊÂ¼ş
 					SetEvent(head.hEvent);
 					break;
@@ -94,7 +97,9 @@ void CClientSocket::threadFunc()//Ïß³Ì¿ªÊ¼Ö´ĞĞ¾Í²»»áÍË³ö£¬Ò»Ö±´¦ÀíÊı¾İµÄ·¢ËÍ½ÓÊÕ
 					index = index - len;
 					/*m_listPack.push_back(pack);*/
 					//pack.hEvent = head.hEvent;
+					m_lock.lock();
 					it->second.push_back(pack);//½«´¦ÀíºÃµÄÊı¾İ°üÒ²·ÅÈë½ÓÊÕÈİÆ÷
+					m_lock.unlock();
 					if (it0->second == true)
 						SetEvent(head.hEvent);
 				}
@@ -102,8 +107,15 @@ void CClientSocket::threadFunc()//Ïß³Ì¿ªÊ¼Ö´ĞĞ¾Í²»»áÍË³ö£¬Ò»Ö±´¦ÀíÊı¾İµÄ·¢ËÍ½ÓÊÕ
 					memset(buf, 0, sizeof(buf));
 					index = 0;
 				}
+
 			} while (it0->second == false);
+			m_lock.lock();
 			m_listSend.pop_front();
+			m_lock.unlock();
+
+			if (it0 != m_mapAutoClosed.end()) {
+				m_mapAutoClosed.erase(it0);
+			}
 
 			//break;
 		}

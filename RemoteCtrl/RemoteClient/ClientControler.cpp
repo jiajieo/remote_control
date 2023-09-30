@@ -53,12 +53,12 @@ int CClientControler::SendPacket(WORD nCmd, BYTE* pData, size_t nSize, BOOL bAut
 	//int ret;
 	//if (pClient->InitSocket() == true) {
 	HANDLE m_hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	pClient->SendPacket(CPacket(nCmd, (char*)pData, nSize, m_hEvent), *plstPack,bAutoClose);
+	pClient->SendPacket(CPacket(nCmd, (char*)pData, nSize, m_hEvent), *plstPack, bAutoClose);
 	if (plstPack->size() > 0) {
 		return plstPack->front().sCmd;
 	}
 	//}
-	
+
 	return -1;
 }
 
@@ -111,7 +111,7 @@ void CClientControler::threadDownFile()
 		//int ret = OnSendPacket(4 << 1 | 0, (LPARAM)(LPCSTR)FileDown);
 		//int ret = SendMessage(WM_SEND_PACKET, 4 << 1 | 0, (LPARAM)(LPCSTR)FileDown);//将制定消息发送到一个或多个窗口
 		std::list<CPacket> lstPack;
-		int ret = SendPacket(4, (BYTE*)m_FileDown.GetBuffer(), m_FileDown.GetLength(), FALSE,&lstPack);
+		int ret = SendPacket(4, (BYTE*)m_FileDown.GetBuffer(), m_FileDown.GetLength(), FALSE, &lstPack);
 		if (ret < 0) {
 			AfxMessageBox("下载失败");
 			break;
@@ -174,21 +174,24 @@ void CClientControler::threadWatch()
 			//int ret = SendMessage(m_RemoteClientDlg, WM_SEND_PACKET, 6 << 1 | 1, (LPARAM)Data);
 			std::list<CPacket> lstpack;
 			SendPacket(6, NULL, 0, TRUE, &lstpack);
-			
+
 			/*CPacket pack(6, NULL, NULL);
 			MSG msg;
 			msg.message = WM_SEND_PACK;
 			msg.lParam = (LPARAM)&pack;*/
 			//int ret =SendPacket(6);
-			if (lstpack.front().sCmd == 6) {//更新数据到缓存器
-				if (ConverImage(lstpack.front()) == FALSE) {//将收到的数据转换为CImage图像缓存
-					TRACE("获取图片失败!\r\n");
-					continue;
+			if (lstpack.size() > 0) {
+				if (lstpack.front().sCmd == 6) {//更新数据到缓存器
+					if (ConverImage(lstpack.front()) == FALSE) {//将收到的数据转换为CImage图像缓存
+						TRACE("获取图片失败!\r\n");
+						continue;
+					}
+					m_WatchDlg.GetIsFull() = true;
 				}
-				m_WatchDlg.GetIsFull() = true;
+				else
+					Sleep(1);
 			}
-			else
-				Sleep(1);
+
 		}//如果还有缓存，就啥也不干，等待无缓存再接受数据，就不需要等待50ms了
 		else
 			Sleep(1);

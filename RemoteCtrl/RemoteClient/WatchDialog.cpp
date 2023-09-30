@@ -55,7 +55,7 @@ END_MESSAGE_MAP()
 BOOL CWatchDialog::OnInitDialog()
 {
 	CDialog::OnInitDialog();
-	
+
 	// TODO:  在此添加额外的初始化
 	SetTimer(0, 45, NULL);//安装系统计时器，第一个参数为0是该窗口的默认定时器，第二个参数指定时间间隔50ms
 	return TRUE;  // return TRUE unless you set the focus to a control
@@ -96,15 +96,16 @@ CPoint CWatchDialog::ConvertRemoteScreenPoint(CPoint& point, bool IsClientCoor)/
 	if (m_width != -1 && m_height != -1) {
 		CRect Clientrect;
 		//加个条件:如果坐标已经在客户端坐标内就不用再转换为客户端坐标了
-		if (IsClientCoor)
-			ScreenToClient(&point);//将给定的坐标转换为客户端坐标
+		if (IsClientCoor)ClientToScreen(&point);
+		m_picture.ScreenToClient(&point);//将给定的坐标转换为客户端坐标
 		m_picture.GetWindowRect(&Clientrect);//获取客户端屏幕大小
 		int width0 = Clientrect.Width();
 		int height0 = Clientrect.Height();
 
 		//远程端的鼠标坐标
 		int x = point.x * m_width / width0;
-		int y = (point.y-33) * m_height / height0;
+		int y = (point.y) * m_height / height0;
+		//int y = (point.y - 33) * m_height / height0;
 		return CPoint(x, y);
 	}
 	return 0;
@@ -124,7 +125,7 @@ CPoint CWatchDialog::ConvertRemoteScreenPoint(CPoint& point, bool IsClientCoor)/
 void CWatchDialog::OnLButtonDblClk(UINT nFlags, CPoint point)
 {
 	//左键双击
-	CPoint remote = ConvertRemoteScreenPoint(point);
+	CPoint remote = ConvertRemoteScreenPoint(point,true);
 	MOUSEEV mouse;
 	mouse.nAction = 1;
 	mouse.nButton = 0;
@@ -139,7 +140,7 @@ void CWatchDialog::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	//左键按下
 
-	CPoint remote = ConvertRemoteScreenPoint(point);
+	CPoint remote = ConvertRemoteScreenPoint(point, true);
 	TRACE("本地x=%d,y=%d\n", point.x, point.y);
 	TRACE("远程x=%d,y=%d\n", remote.x, remote.y);
 	MOUSEEV mouse;
@@ -155,7 +156,7 @@ void CWatchDialog::OnLButtonDown(UINT nFlags, CPoint point)
 void CWatchDialog::OnRButtonDblClk(UINT nFlags, CPoint point)
 {
 	//右键双击
-	CPoint remote = ConvertRemoteScreenPoint(point);
+	CPoint remote = ConvertRemoteScreenPoint(point, true);
 	MOUSEEV mouse;
 	mouse.nAction = 1;
 	mouse.nButton = 1;
@@ -169,7 +170,7 @@ void CWatchDialog::OnRButtonDblClk(UINT nFlags, CPoint point)
 void CWatchDialog::OnRButtonDown(UINT nFlags, CPoint point)
 {
 	//右键按下
-	CPoint remote = ConvertRemoteScreenPoint(point);
+	CPoint remote = ConvertRemoteScreenPoint(point, true);
 	MOUSEEV mouse;
 	mouse.nAction = 2;
 	mouse.nButton = 1;
@@ -183,7 +184,7 @@ void CWatchDialog::OnRButtonDown(UINT nFlags, CPoint point)
 void CWatchDialog::OnLButtonUp(UINT nFlags, CPoint point)
 {
 	//左键放开
-	CPoint remote = ConvertRemoteScreenPoint(point);
+	CPoint remote = ConvertRemoteScreenPoint(point, true);
 	MOUSEEV mouse;
 	mouse.nAction = 4;
 	mouse.nButton = 0;
@@ -197,7 +198,7 @@ void CWatchDialog::OnLButtonUp(UINT nFlags, CPoint point)
 void CWatchDialog::OnRButtonUp(UINT nFlags, CPoint point)
 {
 	//右键放开
-	CPoint remote = ConvertRemoteScreenPoint(point);
+	CPoint remote = ConvertRemoteScreenPoint(point, true);
 	MOUSEEV mouse;
 	mouse.nAction = 4;
 	mouse.nButton = 1;
@@ -211,14 +212,14 @@ void CWatchDialog::OnRButtonUp(UINT nFlags, CPoint point)
 void CWatchDialog::OnMouseMove(UINT nFlags, CPoint point)
 {
 	//鼠标移动
-	CPoint remote = ConvertRemoteScreenPoint(point);
+	CPoint remote = ConvertRemoteScreenPoint(point,true);
 	MOUSEEV mouse;
 	mouse.nAction = 5;
 	mouse.nButton = 3;
 	mouse.ptXY = remote;
 	//TODO:使用SendMessage发送消息时存在一个设计隐患，网络通信和对话框有耦合
 	std::list<CPacket> plstPack;
-	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE,&plstPack);
+	CClientControler::getInstance()->SendPacket(5, (BYTE*)&mouse, sizeof(mouse), TRUE, &plstPack);
 	CDialog::OnMouseMove(nFlags, point);
 }
 
@@ -226,7 +227,7 @@ void CWatchDialog::OnMouseMove(UINT nFlags, CPoint point)
 void CWatchDialog::OnMButtonDown(UINT nFlags, CPoint point)
 {
 	//中键按下
-	CPoint remote = ConvertRemoteScreenPoint(point);
+	CPoint remote = ConvertRemoteScreenPoint(point, true);
 	MOUSEEV mouse;
 	mouse.nAction = 2;
 	mouse.nButton = 2;
@@ -240,7 +241,7 @@ void CWatchDialog::OnMButtonDown(UINT nFlags, CPoint point)
 void CWatchDialog::OnMButtonUp(UINT nFlags, CPoint point)
 {
 	//中键放开
-	CPoint remote = ConvertRemoteScreenPoint(point);
+	CPoint remote = ConvertRemoteScreenPoint(point, true);
 	MOUSEEV mouse;
 	mouse.nAction = 4;
 	mouse.nButton = 2;
@@ -254,7 +255,7 @@ void CWatchDialog::OnMButtonUp(UINT nFlags, CPoint point)
 void CWatchDialog::OnMButtonDblClk(UINT nFlags, CPoint point)
 {
 	//中键双击
-	CPoint remote = ConvertRemoteScreenPoint(point);
+	CPoint remote = ConvertRemoteScreenPoint(point, true);
 	MOUSEEV mouse;
 	mouse.nAction = 1;
 	mouse.nButton = 2;
@@ -291,13 +292,13 @@ void CWatchDialog::OnOK()
 void CWatchDialog::OnBnClickedBtnLock()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	if (islock==false) {//没锁，点的是锁机
+	if (islock == false) {//没锁，点的是锁机
 		m_lock.SetWindowText("解锁");
 		islock = true;
 		std::list<CPacket> plstPack;
 		CClientControler::getInstance()->SendPacket(8, NULL, 0, TRUE, &plstPack);
 	}
-	else if (islock=true) {//锁了，点的是解锁
+	else if (islock = true) {//锁了，点的是解锁
 		m_lock.SetWindowText("锁机");
 		islock = false;
 		std::list<CPacket> plstPack;

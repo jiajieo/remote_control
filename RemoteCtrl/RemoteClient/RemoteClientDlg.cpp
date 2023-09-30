@@ -124,7 +124,7 @@ BOOL CRemoteClientDlg::OnInitDialog()//创建对话框时，该函数就会被�
 	// TODO: 在此添加额外的初始化代码
 
 	UpdateData();//将控件的值赋给成员变量
-	m_servaddress = 0x7F000001;//127.0.0.1->192.168.148.128
+	m_servaddress = 0xC0A89480;//127.0.0.1->192.168.148.128
 	m_port = "6000";
 	int port = atoi(m_port);
 	CClientControler::getInstance()->UpdataAddress(m_servaddress, port);
